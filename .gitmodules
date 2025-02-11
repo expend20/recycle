@@ -1,0 +1,6 @@
+[submodule "remill"]
+	path = remill
+	url = https://github.com/lifting-bits/remill
+[submodule "mcsema"]
+	path = mcsema
+	url = https://github.com/lifting-bits/mcsema
