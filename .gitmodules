@@ -4,3 +4,12 @@
 [submodule "mcsema"]
 	path = mcsema
 	url = https://github.com/lifting-bits/mcsema
+[submodule "third_party/remill"]
+	path = third_party/remill
+	url = https://github.com/lifting-bits/remill
+[submodule "third_party/mcsema"]
+	path = third_party/mcsema
+	url = https://github.com/lifting-bits/mcsema
+[submodule "third_party/udm_parser"]
+	path = third_party/udm_parser
+	url = https://github.com/0vercl0k/udmp-parser

@@ -1,21 +1,28 @@
-# build
+# Env setup
+
+Use Ubuntu 22.04, go to Remill's readme and build remill with:
+
+```
+./remill/scripts/build.sh
+```
+
+Then install it to the system with:
+
+```
+cd ./remill-build
+sudo make install
+```
+
+# Build
+
+Reuse the vcpkg toolchain file and build with:
 
 ```
 cmake \
     -DCMAKE_TOOLCHAIN_FILE=/home/john/git/vcpkg_ubuntu-22.04_llvm-17_amd64/scripts/buildsystems/vcpkg.cmake \
-    -DLLVM_DIR=/home/john/git/vcpkg_ubuntu-22.04_llvm-17_amd64/installed/x64-linux-rel/share/llvm \
-    -DXED_DIR=/home/john/git/vcpkg_ubuntu-22.04_llvm-17_amd64/installed/x64-linux-rel/share/xed \
-    -Dglog_DIR=/home/john/git/vcpkg_ubuntu-22.04_llvm-17_amd64/installed/x64-linux-rel/share/glog \
-    -DZ3_DIR=/home/john/git/lifting-bits-downloads/vcpkg_ubuntu-22.04_llvm-17_amd64/installed/x64-linux-rel/share/z3 \
-    -Dgflags_DIR=/home/john/git/vcpkg_ubuntu-22.04_llvm-17_amd64/installed/x64-linux-rel/share/gflags \
-    -B build -G Ninja \
+    -DVCPKG_TARGET_TRIPLET=x64-linux-rel \
+    -G Ninja \
+    -B build \
     && \
 cmake --build build --config Release
-
-```
-
-# run
-
-```
-./build/bin/remill-lift --arch x86_64 --os linux --entrypoint main --output-format=llvmbc test.ll
 ```

@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.14)
 project(remill_test)
 
+# Enable verbose output
+set(CMAKE_VERBOSE_MAKEFILE ON)
+
 # Enable compile_commands.json generation
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -16,13 +19,31 @@ find_package(remill REQUIRED CONFIG)
 set(GFLAGS_USE_TARGET_NAMESPACE ON)
 find_package(gflags REQUIRED CONFIG)
 
-# Add executable
-add_executable(remill_test test.cpp)
+# Find XED from vcpkg
+find_package(XED CONFIG REQUIRED)
+message(STATUS "Found XED ${XED_VERSION}")
+
+# Log XED library information
+get_target_property(XED_LIB XED::XED IMPORTED_LOCATION_RELEASE)
+get_target_property(XED_ILD_LIB XED::ILD IMPORTED_LOCATION_RELEASE)
+get_target_property(XED_INCLUDE XED::XED INTERFACE_INCLUDE_DIRECTORIES)
+message(STATUS "XED library: ${XED_LIB}")
+message(STATUS "XED ILD library: ${XED_ILD_LIB}")
+message(STATUS "XED include: ${XED_INCLUDE}")
+
+# Add executables
+add_executable(remill_test src/remill_test.cpp)
+add_executable(minidump_test src/minidump_test.cpp)
 
 # Include directories
 target_include_directories(remill_test PRIVATE
     ${LLVM_INCLUDE_DIRS}
     ${REMILL_INCLUDE_DIRS}
+)
+
+target_include_directories(minidump_test PRIVATE
+    ${CMAKE_SOURCE_DIR}
+    ${XED_INCLUDE}
 )
 
 # Link libraries
@@ -32,8 +53,12 @@ target_link_libraries(remill_test PRIVATE
     gflags::gflags
 )
 
-# Set C++ standard
-set_target_properties(remill_test PROPERTIES
+target_link_libraries(minidump_test PRIVATE
+    XED::XED
+)
+
+# Set C++ standard for both targets
+set_target_properties(remill_test minidump_test PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
 ) 
