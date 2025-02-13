@@ -32,8 +32,17 @@ message(STATUS "XED ILD library: ${XED_ILD_LIB}")
 message(STATUS "XED include: ${XED_INCLUDE}")
 
 # Add executables
-add_executable(remill_test src/remill_test.cpp)
-add_executable(minidump_test src/minidump_test.cpp)
+add_executable(remill_test src/test/remill_test.cpp)
+add_executable(minidump_test src/test/minidump_test.cpp)
+
+# Add recycle executable
+add_executable(recycle
+    src/recycle.cpp
+    src/lib/MinidumpContext.cpp
+    src/lib/XEDDisassembler.cpp
+    src/lib/BasicBlockLifter.cpp
+    src/lib/BasicBlockDisassembler.cpp
+)
 
 # Include directories
 target_include_directories(remill_test PRIVATE
@@ -43,6 +52,14 @@ target_include_directories(remill_test PRIVATE
 
 target_include_directories(minidump_test PRIVATE
     ${CMAKE_SOURCE_DIR}
+    ${XED_INCLUDE}
+)
+
+target_include_directories(recycle PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/include
+    ${CMAKE_SOURCE_DIR}
+    ${LLVM_INCLUDE_DIRS}
+    ${REMILL_INCLUDE_DIRS}
     ${XED_INCLUDE}
 )
 
@@ -57,8 +74,14 @@ target_link_libraries(minidump_test PRIVATE
     XED::XED
 )
 
+target_link_libraries(recycle PRIVATE
+    remill
+    ${LLVM_LIBRARIES}
+    XED::XED
+)
+
 # Set C++ standard for both targets
-set_target_properties(remill_test minidump_test PROPERTIES
+set_target_properties(remill_test minidump_test recycle PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
 ) 
