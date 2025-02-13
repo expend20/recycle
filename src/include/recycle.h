@@ -82,17 +82,13 @@ public:
     bool LiftBlock(const std::vector<DecodedInstruction>& instructions,
                    uint64_t block_addr);
     
-    llvm::Module* GetModule() { return module.get(); }
+    llvm::Module* GetModule() { return dest_module.get(); }
 
 private:
     std::unique_ptr<llvm::LLVMContext> context;
-    std::unique_ptr<llvm::Module> module;
+    std::unique_ptr<llvm::Module> dest_module;
     remill::Arch::ArchPtr arch;
     std::unique_ptr<remill::IntrinsicTable> intrinsics;
     
-    bool InitializeLifter();
-    bool LiftInstruction(const DecodedInstruction& inst,
-                        llvm::BasicBlock* block,
-                        llvm::Value* state_ptr);
     bool VerifyIntrinsics();
 }; 

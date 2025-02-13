@@ -5,8 +5,10 @@
 #include <remill/BC/InstructionLifter.h>
 #include <remill/BC/Lifter.h>
 #include <remill/BC/TraceLifter.h>
+#include <remill/BC/Optimizer.h>
 #include <iostream>
 #include <glog/logging.h>
+#include <llvm/Linker/Linker.h>
 
 using Memory = std::map<uint64_t, uint8_t>;
 
@@ -76,57 +78,13 @@ public:
     std::unordered_map<uint64_t, llvm::Function *> traces;
 };
 
-BasicBlockLifter::BasicBlockLifter() {
-    InitializeLifter();
-}
-
-bool BasicBlockLifter::InitializeLifter() {
-    LOG(INFO) << "Initializing BasicBlockLifter...";
-    
-    // Create LLVM context and module
-    context = std::make_unique<llvm::LLVMContext>();
-    LOG(INFO) << "Created LLVM context";
-
-    // Initialize architecture (assuming x86-64 for now)
-    LOG(INFO) << "Creating architecture for windows/amd64";
-    arch = remill::Arch::Get(*context, "windows", "amd64");
-    if (!arch) {
-        LOG(ERROR) << "Failed to create architecture";
-        return false;
-    }
-
-    // Load architecture semantics into module
-    LOG(INFO) << "Loading architecture semantics";
-    module = remill::LoadArchSemantics(arch.get());
-    if (!module) {
-        LOG(ERROR) << "Failed to load architecture semantics";
-        return false;
-    }
-    LOG(INFO) << "Created module with architecture semantics";
-    
-    // Initialize intrinsics
-    LOG(INFO) << "Initializing intrinsics table";
-    intrinsics = std::make_unique<remill::IntrinsicTable>(module.get());
-    
-    // Verify critical intrinsics
-    if (!VerifyIntrinsics()) {
-        LOG(ERROR) << "Failed to verify critical intrinsics";
-        return false;
-    }
-    
-    LOG(INFO) << "BasicBlockLifter initialization complete";
-    return true;
-}
+BasicBlockLifter::BasicBlockLifter() : context(std::make_unique<llvm::LLVMContext>()) {}
 
 bool BasicBlockLifter::VerifyIntrinsics() {
-    // Check if error intrinsic exists
     if (!intrinsics->error) {
         LOG(ERROR) << "Missing critical intrinsic: __remill_error";
         return false;
     }
-    LOG(INFO) << "Found intrinsic: __remill_error";
-
-    // Check other critical intrinsics
     if (!intrinsics->jump) {
         LOG(ERROR) << "Missing critical intrinsic: __remill_jump";
         return false;
@@ -143,8 +101,6 @@ bool BasicBlockLifter::VerifyIntrinsics() {
         LOG(ERROR) << "Missing critical intrinsic: __remill_missing_block";
         return false;
     }
-
-    LOG(INFO) << "All critical intrinsics verified";
     return true;
 }
 
@@ -152,19 +108,19 @@ bool BasicBlockLifter::LiftBlock(
     const std::vector<DecodedInstruction>& instructions,
     uint64_t block_addr) {
     
-    LOG(INFO) << "Lifting block at address 0x" << std::hex << block_addr;
-    
     if (instructions.empty()) {
         LOG(WARNING) << "Empty instruction vector provided";
         return false;
     }
 
-    // Create a new module for trace lifting
-    LOG(INFO) << "Creating new module for trace lifting";
-    auto trace_module = remill::LoadArchSemantics(arch.get());
-    if (!trace_module) {
-        LOG(ERROR) << "Failed to create trace module";
-        return false;
+    // Initialize architecture if not already done
+    if (!arch) {
+        LOG(INFO) << "Creating architecture for windows/amd64";
+        arch = remill::Arch::Get(*context, "windows", "amd64");
+        if (!arch) {
+            LOG(ERROR) << "Failed to create architecture";
+            return false;
+        }
     }
 
     // Create a map of bytes for the instructions
@@ -175,10 +131,25 @@ bool BasicBlockLifter::LiftBlock(
         }
     }
 
-    SimpleTraceManager inst_manager(memory);
+    // Load architecture semantics into module
+    LOG(INFO) << "Loading architecture semantics";
+    auto temp_module = remill::LoadArchSemantics(arch.get());
+    if (!temp_module) {
+        LOG(ERROR) << "Failed to create module";
+        return false;
+    }
 
-    // Create trace manager with our memory
-    LOG(INFO) << "Creating trace manager and lifter";
+    // Initialize intrinsics if not already done
+    if (!intrinsics) {
+        LOG(INFO) << "Initializing intrinsics table";
+        intrinsics = std::make_unique<remill::IntrinsicTable>(temp_module.get());
+        if (!VerifyIntrinsics()) {
+            LOG(ERROR) << "Failed to verify critical intrinsics";
+            return false;
+        }
+    }
+
+    SimpleTraceManager inst_manager(memory);
     remill::TraceLifter inst_lifter(arch.get(), inst_manager);
 
     // Lift the trace starting at our block address
@@ -188,40 +159,18 @@ bool BasicBlockLifter::LiftBlock(
         return false;
     }
 
-    // Get the lifted function
-    auto func = inst_manager.traces[block_addr];
-    if (!func) {
-        LOG(ERROR) << "Could not find lifted trace for address 0x" << std::hex << block_addr;
-        return false;
-    }
+    // Optimize the lifted code
+    remill::OptimizationGuide guide = {};
+    remill::OptimizeModule(arch, temp_module, inst_manager.traces, guide);
 
-    LOG(INFO) << "Moving lifted function into target module";
-    LOG(INFO) << "Source module: " << trace_module.get() << ", Target module: " << module.get();
-    //remill::MoveFunctionIntoModule(func, module.get());
+    // Create destination module and prepare it
+    dest_module = std::make_unique<llvm::Module>("lifted_code", *context);
+    arch->PrepareModuleDataLayout(dest_module.get());
+
+    // Move the lifted functions into the destination module
+    for (auto &lifted_entry : inst_manager.traces) {
+        remill::MoveFunctionIntoModule(lifted_entry.second, dest_module.get());
+    }
 
     return true;
 }
-
-bool BasicBlockLifter::LiftInstruction(
-    const DecodedInstruction& inst,
-    llvm::BasicBlock* block,
-    llvm::Value* state_ptr) {
-
-    LOG(INFO) << "Lifting instruction at 0x" << std::hex << inst.address;
-
-    remill::Instruction remill_inst;
-    remill_inst.pc = inst.address;
-    remill_inst.next_pc = inst.address + inst.length;
-    remill_inst.bytes.assign(inst.bytes.begin(), inst.bytes.end());
-
-    auto lifter = std::make_unique<remill::InstructionLifter>(arch.get(), intrinsics.get());
-    auto status = lifter->LiftIntoBlock(remill_inst, block, state_ptr);
-
-    if (status != remill::LiftStatus::kLiftedInstruction) {
-        LOG(ERROR) << "Failed to lift instruction at 0x" << std::hex << inst.address 
-                  << " status: " << static_cast<int>(status);
-        return false;
-    }
-
-    return true;
-} 
