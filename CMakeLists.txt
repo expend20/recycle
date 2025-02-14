@@ -12,6 +12,25 @@ find_package(LLVM REQUIRED CONFIG)
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 
+# Add LLVM definitions and include directories globally
+add_definitions(${LLVM_DEFINITIONS})
+include_directories(${LLVM_INCLUDE_DIRS})
+
+# Get proper LLVM library list
+llvm_map_components_to_libnames(llvm_libs
+    core
+    support
+    irreader
+    executionengine
+    interpreter
+    mcjit
+    x86codegen
+    x86asmparser
+    x86desc
+    x86info
+    native
+)
+
 # Find Remill
 find_package(remill REQUIRED CONFIG)
 
@@ -34,6 +53,7 @@ message(STATUS "XED include: ${XED_INCLUDE}")
 # Add executables
 add_executable(remill_test src/test/remill_test.cpp)
 add_executable(minidump_test src/test/minidump_test.cpp)
+add_executable(llvm_jit_test src/test/llvm_jit_test.cpp)
 
 # Add recycle executable
 add_executable(recycle
@@ -63,6 +83,10 @@ target_include_directories(recycle PRIVATE
     ${XED_INCLUDE}
 )
 
+target_include_directories(llvm_jit_test PRIVATE
+    ${LLVM_INCLUDE_DIRS}
+)
+
 # Link libraries
 target_link_libraries(remill_test PRIVATE
     remill
@@ -80,8 +104,12 @@ target_link_libraries(recycle PRIVATE
     XED::XED
 )
 
+target_link_libraries(llvm_jit_test PRIVATE
+    ${llvm_libs}
+)
+
 # Set C++ standard for both targets
-set_target_properties(remill_test minidump_test recycle PROPERTIES
+set_target_properties(remill_test minidump_test recycle llvm_jit_test PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
 ) 

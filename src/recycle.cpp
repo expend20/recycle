@@ -52,12 +52,16 @@ int main(int argc, char* argv[]) {
     }
 
     // Print the lifted LLVM IR
-    llvm::outs() << "\nLifted LLVM IR:\n";
-    llvm::outs() << "----------------------------------------\n";
-    std::string ir_str;
-    llvm::raw_string_ostream os(ir_str);
-    lifter.GetModule()->print(os, nullptr);
-    llvm::outs() << os.str() << "\n";
+    std::error_code EC;
+    llvm::raw_fd_ostream file("lifted.ll", EC);
+    if (EC) {
+        std::cerr << "Could not open file: " << EC.message() << "\n";
+        return 1;
+    }
+    lifter.GetModule()->print(file, nullptr);
+    file.close();
+    
+    llvm::outs() << "LLVM IR written to lifted.ll\n";
 
     return 0;
 } 
