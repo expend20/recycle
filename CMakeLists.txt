@@ -62,6 +62,9 @@ add_executable(recycle
     src/lib/XEDDisassembler.cpp
     src/lib/BasicBlockLifter.cpp
     src/lib/BasicBlockDisassembler.cpp
+    src/lib/JITEngine.cpp
+    src/lib/Runtime.cpp
+    src/lib/LoggingPass.cpp
 )
 
 # Include directories

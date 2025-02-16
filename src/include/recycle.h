@@ -83,6 +83,7 @@ public:
                    uint64_t block_addr);
     
     llvm::Module* GetModule() { return dest_module.get(); }
+    std::unique_ptr<llvm::Module> TakeModule() { return std::move(dest_module); }
 
 private:
     std::unique_ptr<llvm::LLVMContext> context;
