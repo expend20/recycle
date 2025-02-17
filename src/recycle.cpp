@@ -121,5 +121,13 @@ int main(int argc, char* argv[]) {
     llvm::outs() << "Successfully executed lifted code\n";
     llvm::outs() << "State: rip: " << llvm::format_hex(state.gpr.rip.qword, 16) << "\n";
 
+    // Print all missing blocks encountered during execution
+    llvm::outs() << "Missing blocks encountered:\n";
+    const auto& missing_blocks = Runtime::MissingBlockTracker::GetMissingBlocks();
+    for (const auto& pc : missing_blocks) {
+        llvm::outs() << "  0x" << llvm::format_hex(pc, 16) << "\n";
+    }
+    llvm::outs() << "Total missing blocks: " << missing_blocks.size() << "\n";
+
     return 0;
 } 

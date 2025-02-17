@@ -1,8 +1,19 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 
 namespace Runtime {
+
+class MissingBlockTracker {
+public:
+    static void AddMissingBlock(uint64_t pc);
+    static const std::vector<uint64_t>& GetMissingBlocks();
+    static void ClearMissingBlocks();
+
+private:
+    static std::vector<uint64_t> missing_blocks;
+};
 
 // Sample runtime functions that will be linked with lifted code
 extern "C" {
