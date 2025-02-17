@@ -14,15 +14,16 @@ JITEngine::JITEngine() {}
 
 JITEngine::~JITEngine() {}
 
-bool JITEngine::Initialize() {
+bool JITEngine::Initialize(std::unique_ptr<llvm::Module> module) {
     // Initialize LLVM's target infrastructure
     llvm::InitializeNativeTarget();
     llvm::InitializeNativeTargetAsmPrinter();
     llvm::InitializeNativeTargetAsmParser();
-    return true;
-}
 
-bool JITEngine::InitializeWithModule(std::unique_ptr<llvm::Module> module) {
+    if (!module) {
+        return true;
+    }
+
     llvm::outs() << "Setting data layout\n";
     std::unique_ptr<llvm::TargetMachine> TM(
         llvm::EngineBuilder().selectTarget(
@@ -72,10 +73,8 @@ bool JITEngine::InitializeWithModule(std::unique_ptr<llvm::Module> module) {
     };
 
     for (const auto& func : externalFuncs) {
-        //llvm::outs() << "Mapping " << func.name << "\n";
         llvm::Function* llvmFunc = modulePtr->getFunction(func.name);
         if (llvmFunc) {
-            //llvm::outs() << "Function pointer: " << llvm::format_hex(reinterpret_cast<uintptr_t>(func.ptr), 16) << "\n";
             ExecutionEngine->addGlobalMapping(llvmFunc, func.ptr);
         }
     }
@@ -84,20 +83,6 @@ bool JITEngine::InitializeWithModule(std::unique_ptr<llvm::Module> module) {
     ExecutionEngine->finalizeObject();
 
     return true;
-}
-
-void JITEngine::AddExternalMapping(llvm::Function* F, void* Addr) {
-    if (ExecutionEngine) {
-        ExecutionEngine->addGlobalMapping(F, Addr);
-    }
-}
-
-void JITEngine::AddExternalMappingByName(const std::string& name, void* Addr) {
-    if (ExecutionEngine) {
-        if (auto* F = ExecutionEngine->FindFunctionNamed(name)) {
-            ExecutionEngine->addGlobalMapping(F, Addr);
-        }
-    }
 }
 
 bool JITEngine::ExecuteFunction(const std::string& name, void* state, uint64_t pc, void* memory) {

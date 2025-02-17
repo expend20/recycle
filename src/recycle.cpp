@@ -90,14 +90,8 @@ int main(int argc, char* argv[]) {
 
     // Initialize JIT engine
     JITEngine jit;
-    if (!jit.Initialize()) {
+    if (!jit.Initialize(std::move(module))) {
         std::cerr << "Failed to initialize JIT engine\n";
-        return 1;
-    }
-
-    // Initialize with module
-    if (!jit.InitializeWithModule(std::move(module))) {
-        std::cerr << "Failed to initialize JIT engine with module\n";
         return 1;
     }
 
