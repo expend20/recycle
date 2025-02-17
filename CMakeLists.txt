@@ -67,6 +67,7 @@ add_executable(recycle
     src/lib/LoggingPass.cpp
     src/lib/PassManager.cpp
     src/lib/RenamePass.cpp
+    src/lib/MiscUtils.cpp
 )
 
 # Include directories

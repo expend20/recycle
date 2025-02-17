@@ -1,5 +1,6 @@
 #include "JITEngine.h"
 #include "Runtime.h"
+#include "MiscUtils.h"
 #include <llvm/ExecutionEngine/MCJIT.h>
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/raw_ostream.h>
@@ -37,16 +38,8 @@ bool JITEngine::InitializeWithModule(std::unique_ptr<llvm::Module> module) {
     module->setDataLayout(TM->createDataLayout());
     module->setTargetTriple(llvm::sys::getProcessTriple());
 
-    // Print the lifted LLVM IR
-    std::error_code EC;
-    llvm::raw_fd_ostream file("lifted.ll", EC);
-    if (EC) {
-        LOG(ERROR) << "Could not open file: " << EC.message();
-        return false;
-    }
-    module->print(file, nullptr);
-    file.close();
-    llvm::outs() << "LLVM IR written to lifted.ll\n";
+    // Print the lifted LLVM IR using MiscUtils
+    MiscUtils::DumpModule(*module, "lifted.ll");
 
     // Create execution engine
     llvm::outs() << "Creating execution engine\n";

@@ -3,6 +3,7 @@
 #include "Runtime.h"
 #include "LoggingPass.h"
 #include "PassManager.h"
+#include "MiscUtils.h"
 #include <iostream>
 #include <sstream>
 #include <llvm/Support/raw_ostream.h>
@@ -75,6 +76,12 @@ int main(int argc, char* argv[]) {
 
     // Get the module from lifter
     auto module = lifter.TakeModule();
+
+    // Create a new module
+    auto accumulated_module = std::make_unique<Module>("accumulated", module->getContext());
+    //Continue: create interface to extract missing blocks, merge the lifted blocks and continue until there is no missing blocks
+    MiscUtils::MergeModules(*accumulated_module, *module);
+    MiscUtils::DumpModule(*accumulated_module, "accumulated.ll");
 
     // Apply the logging pass using our wrapper
     PassManagerWrapper pass_manager;
