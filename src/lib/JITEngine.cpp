@@ -82,12 +82,10 @@ bool JITEngine::InitializeWithModule(std::unique_ptr<llvm::Module> module) {
     for (const auto& func : externalFuncs) {
         llvm::outs() << "Mapping " << func.name << "\n";
         llvm::Function* llvmFunc = modulePtr->getFunction(func.name);
-        if (!llvmFunc) {
-            LOG(ERROR) << "Failed to find " << func.name;
-            return false;
+        if (llvmFunc) {
+            llvm::outs() << "Function pointer: " << llvm::format_hex(reinterpret_cast<uintptr_t>(func.ptr), 16) << "\n";
+            ExecutionEngine->addGlobalMapping(llvmFunc, func.ptr);
         }
-        llvm::outs() << "Function pointer: " << llvm::format_hex(reinterpret_cast<uintptr_t>(func.ptr), 16) << "\n";
-        ExecutionEngine->addGlobalMapping(llvmFunc, func.ptr);
     }
     
     // Force symbol resolution

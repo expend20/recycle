@@ -2,6 +2,7 @@
 #include "JITEngine.h"
 #include "Runtime.h"
 #include "LoggingPass.h"
+#include "PassManager.h"
 #include <iostream>
 #include <sstream>
 #include <llvm/Support/raw_ostream.h>
@@ -75,24 +76,9 @@ int main(int argc, char* argv[]) {
     // Get the module from lifter
     auto module = lifter.TakeModule();
 
-    // Set up the pass manager infrastructure
-    llvm::PassBuilder PB;
-    llvm::LoopAnalysisManager LAM;
-    llvm::FunctionAnalysisManager FAM;
-    llvm::CGSCCAnalysisManager CGAM;
-    llvm::ModuleAnalysisManager MAM;
-
-    // Register all the basic analyses with the managers
-    PB.registerModuleAnalyses(MAM);
-    PB.registerCGSCCAnalyses(CGAM);
-    PB.registerFunctionAnalyses(FAM);
-    PB.registerLoopAnalyses(LAM);
-    PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
-
-    // Create and run the logging pass
-    llvm::ModulePassManager MPM;
-    MPM.addPass(FunctionLoggingPass());
-    MPM.run(*module, MAM);
+    // Apply the logging pass using our wrapper
+    PassManagerWrapper pass_manager;
+    pass_manager.ApplyLoggingPass(module.get());
 
     // Log all functions in module
     llvm::outs() << "Functions in module before mapping:\n";

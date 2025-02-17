@@ -65,6 +65,7 @@ add_executable(recycle
     src/lib/JITEngine.cpp
     src/lib/Runtime.cpp
     src/lib/LoggingPass.cpp
+    src/lib/PassManager.cpp
 )
 
 # Include directories
