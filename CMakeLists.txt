@@ -63,7 +63,7 @@ add_executable(recycle
     src/lib/BasicBlockLifter.cpp
     src/lib/BasicBlockDisassembler.cpp
     src/lib/JITEngine.cpp
-    src/lib/Runtime.cpp
+    src/lib/JITRuntime.cpp
     src/lib/LoggingPass.cpp
     src/lib/PassManager.cpp
     src/lib/RenamePass.cpp

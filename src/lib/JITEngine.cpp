@@ -1,5 +1,5 @@
 #include "JITEngine.h"
-#include "Runtime.h"
+#include "JITRuntime.h"
 #include "MiscUtils.h"
 #include <llvm/ExecutionEngine/MCJIT.h>
 #include <llvm/Support/TargetSelect.h>

@@ -1,6 +1,6 @@
 #include "recycle.h"
 #include "JITEngine.h"
-#include "Runtime.h"
+#include "JITRuntime.h"
 #include "LoggingPass.h"
 #include "PassManager.h"
 #include "MiscUtils.h"
