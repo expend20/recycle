@@ -76,29 +76,19 @@ bool JITEngine::InitializeWithModule(std::unique_ptr<llvm::Module> module) {
         {"__remill_log_function", reinterpret_cast<void*>(Runtime::__remill_log_function)},
         {"__remill_missing_block", reinterpret_cast<void*>(Runtime::__remill_missing_block)},
         {"__remill_write_memory_64", reinterpret_cast<void*>(Runtime::__remill_write_memory_64)},
-        {"sub_1400016d0", reinterpret_cast<void*>(Runtime::__sub_1400016d0)}
     };
 
     for (const auto& func : externalFuncs) {
-        llvm::outs() << "Mapping " << func.name << "\n";
+        //llvm::outs() << "Mapping " << func.name << "\n";
         llvm::Function* llvmFunc = modulePtr->getFunction(func.name);
         if (llvmFunc) {
-            llvm::outs() << "Function pointer: " << llvm::format_hex(reinterpret_cast<uintptr_t>(func.ptr), 16) << "\n";
+            //llvm::outs() << "Function pointer: " << llvm::format_hex(reinterpret_cast<uintptr_t>(func.ptr), 16) << "\n";
             ExecutionEngine->addGlobalMapping(llvmFunc, func.ptr);
         }
     }
     
     // Force symbol resolution
     ExecutionEngine->finalizeObject();
-    
-    // Verify all external functions are resolved
-    for (auto &F : modulePtr->functions()) {
-        if (F.isDeclaration()) {
-            void *Addr = (void*)ExecutionEngine->getPointerToFunction(&F);
-            llvm::outs() << "Function " << F.getName().data() 
-                        << " resolved to address: " << llvm::format_hex(reinterpret_cast<uintptr_t>(Addr), 16) << "\n";
-        }
-    }
 
     return true;
 }

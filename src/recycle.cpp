@@ -78,13 +78,8 @@ int main(int argc, char* argv[]) {
 
     // Apply the logging pass using our wrapper
     PassManagerWrapper pass_manager;
+    pass_manager.ApplyRenamePass(module.get());
     pass_manager.ApplyLoggingPass(module.get());
-
-    // Log all functions in module
-    llvm::outs() << "Functions in module before mapping:\n";
-    for (auto &F : *module) {
-        llvm::outs() << "  " << F.getName() << " (is declaration: " << F.isDeclaration() << ")\n";
-    }
 
     // Initialize JIT engine
     JITEngine jit;
@@ -104,9 +99,11 @@ int main(int argc, char* argv[]) {
     X86State state = {};
     state.gpr.rcx.qword = 0x123;
     state.gpr.rip.qword = ip;
+    const size_t StackSize = 0x100000;
+    state.gpr.rsp.qword = StackSize;
 
-    auto mem = std::make_unique<char[]>(1024*1024);
-    std::memset(mem.get(), 0, 1024*1024);
+    auto mem = std::make_unique<char[]>(StackSize);
+    std::memset(mem.get(), 0, StackSize);
 
     // Execute the lifted code
     if (!jit.ExecuteFunction("sub_14000185d", &state, ip, mem.get())) {

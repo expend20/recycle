@@ -1,5 +1,6 @@
 #include "PassManager.h"
 #include "LoggingPass.h"
+#include "RenamePass.h"
 #include <llvm/IR/PassManager.h>
 #include <llvm/Passes/PassBuilder.h>
 
@@ -20,5 +21,12 @@ void PassManagerWrapper::ApplyLoggingPass(llvm::Module* module) {
     // Create and run the logging pass
     llvm::ModulePassManager MPM;
     MPM.addPass(FunctionLoggingPass());
+    MPM.run(*module, MAM);
+}
+
+void PassManagerWrapper::ApplyRenamePass(llvm::Module* module) {
+    // Create and run the rename pass
+    llvm::ModulePassManager MPM;
+    MPM.addPass(FunctionRenamePass());
     MPM.run(*module, MAM);
 } 
