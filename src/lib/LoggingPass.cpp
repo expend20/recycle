@@ -10,9 +10,17 @@ llvm::PreservedAnalyses FunctionLoggingPass::run(llvm::Module &M, llvm::ModuleAn
         false
     );
     
-    llvm::Function *LogFunc = llvm::cast<llvm::Function>(
-        M.getOrInsertFunction("__remill_log_function", LogFuncType).getCallee()
+    llvm::Function *LogFunc = llvm::Function::Create(
+        LogFuncType,
+        llvm::Function::ExternalLinkage,
+        "__remill_log_function",
+        &M
     );
+
+    if (!LogFunc) {
+        llvm::outs() << "Failed to create __remill_log_function\n";
+        return llvm::PreservedAnalyses::none();
+    }
 
     // Add logging to each function in the module
     for (auto &F : M) {

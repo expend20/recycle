@@ -10,6 +10,7 @@
 #include <llvm/ExecutionEngine/MCJIT.h>
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/Support/Host.h>
 
 using namespace llvm;
 
@@ -26,7 +27,7 @@ int main() {
     InitializeNativeTargetAsmPrinter();
     InitializeNativeTargetAsmParser();
 
-    // Create a new context and module
+    // Create a new context and modul
     LLVMContext Context;
     std::unique_ptr<Module> TheModule = std::make_unique<Module>("JITTest", Context);
     
@@ -74,18 +75,27 @@ int main() {
         std::cerr << "Error verifying module: " << ErrorStr << std::endl;
         return 1;
     }
+
+    // Dump module to file
+    std::error_code EC;
+    raw_fd_ostream File("jit_test.ll", EC);
+    TheModule->print(File, nullptr);
+    File.close();
     
     // Create the JIT
     std::string ErrStr;
     ExecutionEngine *EE = EngineBuilder(std::move(TheModule))
         .setErrorStr(&ErrStr)
+        .setEngineKind(llvm::EngineKind::JIT)
+        .setMCPU(llvm::sys::getHostCPUName())
+        .setOptLevel(llvm::CodeGenOpt::None)  // Disable optimizations for now
         .create();
         
     if (!EE) {
         std::cerr << "Failed to create execution engine: " << ErrStr << std::endl;
         return 1;
     }
-    
+
     // Map the external function
     EE->addGlobalMapping(MultiplyF, reinterpret_cast<void*>(multiply));
     
