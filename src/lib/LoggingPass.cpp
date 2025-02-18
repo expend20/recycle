@@ -1,6 +1,7 @@
 #include "LoggingPass.h"
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
+#include <glog/logging.h>
 
 llvm::PreservedAnalyses FunctionLoggingPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
     // First check if logging function already exists
@@ -22,7 +23,7 @@ llvm::PreservedAnalyses FunctionLoggingPass::run(llvm::Module &M, llvm::ModuleAn
         );
 
         if (!LogFunc) {
-            llvm::outs() << "Failed to create __remill_log_function\n";
+            LOG(ERROR) << "Failed to create __remill_log_function";
             return llvm::PreservedAnalyses::none();
         }
     }

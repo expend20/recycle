@@ -15,25 +15,25 @@ std::unique_ptr<llvm::Module> CloneModule(const llvm::Module& M) {
 // just as a sample
 void MergeModules(llvm::Module& M1, const llvm::Module& M2) {
 
-    LOG(INFO) << "Merging modules";
+    VLOG(1) << "Merging modules";
 
-    LOG(INFO) << "Verifying M2";
+    VLOG(1) << "Verifying M2";
     if (llvm::verifyModule(M2, &llvm::errs())) {
         LOG(ERROR) << "M2 is not valid";
         return;
     }
-    LOG(INFO) << "Verifying M1";    
+    VLOG(1) << "Verifying M1";    
     if (llvm::verifyModule(M1, &llvm::errs())) {
         LOG(ERROR) << "M1 is not valid";
         return;
     }
     // Clone M2 to avoid modifying the original
     auto ClonedM2 = llvm::CloneModule(M2);
-    LOG(INFO) << "Cloned M2";
+    VLOG(1) << "Cloned M2";
     
     // Link the modules
     llvm::Linker::linkModules(M1, std::move(ClonedM2));
-    LOG(INFO) << "Linked modules";
+    VLOG(1) << "Linked modules";
 }
 
 void DumpModule(const llvm::Module& M, const std::string& filename) {
@@ -45,7 +45,7 @@ void DumpModule(const llvm::Module& M, const std::string& filename) {
     }
     M.print(file, nullptr);
     file.close();
-    llvm::outs() << "LLVM IR written to " << filename << "\n";
+    LOG(INFO) << "LLVM IR written to " << filename;
 }
 
 } // namespace MiscUtils 

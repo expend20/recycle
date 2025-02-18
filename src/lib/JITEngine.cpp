@@ -24,7 +24,7 @@ bool JITEngine::Initialize(std::unique_ptr<llvm::Module> module) {
         return true;
     }
 
-    llvm::outs() << "Setting data layout\n";
+    VLOG(1) << "Setting data layout";
     std::unique_ptr<llvm::TargetMachine> TM(
         llvm::EngineBuilder().selectTarget(
             llvm::Triple(llvm::sys::getProcessTriple()),  // Use host triple
@@ -40,7 +40,7 @@ bool JITEngine::Initialize(std::unique_ptr<llvm::Module> module) {
     module->setTargetTriple(llvm::sys::getProcessTriple());
 
     // Create execution engine
-    llvm::outs() << "Creating execution engine\n";
+    VLOG(1) << "Creating execution engine";
     std::string ErrStr;
     auto* modulePtr = module.get();  // Keep a copy of the raw pointer
     ExecutionEngine.reset(
@@ -90,7 +90,6 @@ bool JITEngine::ExecuteFunction(const std::string& name, void* state, uint64_t p
     }
 
     // find and call the function
-    llvm::outs() << "Finding " << name << "\n";
     typedef void* (*FuncType)(void*, uint64_t, void*);
     FuncType Func = reinterpret_cast<FuncType>(ExecutionEngine->getFunctionAddress(name));
     if (!Func) {
@@ -99,6 +98,7 @@ bool JITEngine::ExecuteFunction(const std::string& name, void* state, uint64_t p
     }
 
     // Call the function
+    VLOG(1) << "Calling " << name;
     Func(state, pc, memory);
     return true;
 } 

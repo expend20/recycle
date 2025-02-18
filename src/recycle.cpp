@@ -31,32 +31,41 @@ int main(int argc, char* argv[]) {
     // Initialize Google logging
     google::InitGoogleLogging(argv[0]);
     FLAGS_logtostderr = true;  // Ensure logs go to stderr
+    FLAGS_colorlogtostderr = true;  // Enable colored output
+    google::SetLogDestination(google::INFO, "");  // Disable log file output
+    FLAGS_log_prefix = false;
+    FLAGS_v = 0;  // Disable verbose logging
+    LOG(INFO) << "Starting program execution";
 
     if (argc != 2) {
-        std::cerr << "Usage: " << argv[0] << " <path_to_minidump>\n";
+        LOG(ERROR) << "Invalid number of arguments. Usage: " << argv[0] << " <path_to_minidump>";
         return 1;
     }
 
+    LOG(INFO) << "Initializing minidump context from file: " << argv[1];
     // Initialize minidump context
     MinidumpContext context(argv[1]);
     if (!context.Initialize()) {
-        std::cerr << "Failed to initialize minidump context\n";
+        LOG(ERROR) << "Failed to initialize minidump context";
         return 1;
     }
 
     // Set up disassembler and lifter
+    VLOG(1) << "Setting up disassembler";
     BasicBlockDisassembler disassembler;
 
     // Create LLVM context that will be shared
+    VLOG(1) << "Creating LLVM context";
     std::unique_ptr<llvm::LLVMContext> llvm_context = std::make_unique<llvm::LLVMContext>();
 
     // Add the address of the function to ignore, the end of the trace
+    LOG(INFO) << "Adding ignored address: 0x140001862";
     Runtime::MissingBlockTracker::AddIgnoredAddress(0x140001862);
 
     std::vector<uint64_t> missing_blocks;
     missing_blocks.push_back(context.GetInstructionPointer());
-    llvm::outs() << "Starting disassembly from instruction pointer: 0x"
-                     << llvm::format_hex(missing_blocks[0], 16) << "\n";
+    VLOG(1) << "Starting disassembly from instruction pointer: 0x" 
+              << std::hex << missing_blocks[0];
 
     std::stringstream ss;
     ss << "sub_" << std::hex << missing_blocks[0];
@@ -68,43 +77,42 @@ int main(int argc, char* argv[]) {
 
     while (missing_blocks.size() > 0) {
         count++;
+        LOG(INFO) << std::endl;
 
         BasicBlockLifter lifter(*llvm_context);
 
         // pop first block from missing_blocks
         uint64_t ip = missing_blocks.back();
         missing_blocks.pop_back();
-        llvm::outs() << "Lifting block at IP: 0x" << llvm::format_hex(ip, 16) << "\n";
+        LOG(INFO) << "Lifting block #" << count << " at IP: 0x" << std::hex << ip;
 
         auto memory = context.ReadMemory(ip, 256); // Read enough for a basic block
         if (memory.empty())
         {
-            std::cerr << "Failed to read memory at IP\n";
+            LOG(ERROR) << "Failed to read memory at IP: 0x" << std::hex << ip;
             return 1;
         }
-
-        llvm::outs() << "Successfully read " << memory.size()
-                     << " bytes of memory for disassembly\n";
 
         // Disassemble the basic block
         auto instructions = disassembler.DisassembleBlock(memory.data(), memory.size(), ip);
         if (instructions.empty())
         {
-            std::cerr << "No instructions decoded\n";
+            LOG(ERROR) << "No instructions decoded at IP: 0x" << std::hex << ip;
             return 1;
         }
+        VLOG(1) << "Successfully disassembled " << instructions.size() << " instructions";
 
         // Initialize lifter and lift the block
         if (!lifter.LiftBlock(instructions, ip))
         {
-            std::cerr << "Failed to lift basic block\n";
+            LOG(ERROR) << "Failed to lift basic block at IP: 0x" << std::hex << ip;
             return 1;
         }
+        VLOG(1) << "Successfully lifted basic block at IP: 0x" << std::hex << ip;
 
         // Get the module from lifter
         auto lifted_module = lifter.TakeModule();
 
-        llvm::outs() << "Merging modules\n";
         // save the module
         if (saved_module == nullptr) {
             saved_module = MiscUtils::CloneModule(*lifted_module);
@@ -115,12 +123,9 @@ int main(int argc, char* argv[]) {
         }
 
         // Apply the logging pass using our wrapper
-        llvm::outs() << "Applying logging pass\n";
         PassManagerWrapper pass_manager;
         pass_manager.ApplyRenamePass(saved_module.get());
-        llvm::outs() << "Applying remove suffix pass\n";
         pass_manager.ApplyRemoveSuffixPass(saved_module.get());
-        llvm::outs() << "Applying logging pass\n";
         pass_manager.ApplyLoggingPass(saved_module.get());
 
         // log .ll file
@@ -131,16 +136,15 @@ int main(int argc, char* argv[]) {
 
         // Initialize JIT engine
         auto jit_module = MiscUtils::CloneModule(*saved_module);
-        llvm::outs() << "Initializing JIT engine\n";
         JITEngine jit;
         if (!jit.Initialize(std::move(jit_module)))
         {
-            std::cerr << "Failed to initialize JIT engine\n";
+            LOG(ERROR) << "Failed to initialize JIT engine";
             return 1;
         }
+        VLOG(1) << "Successfully initialized JIT engine";
 
         // create state and memory
-        llvm::outs() << "Creating state and memory\n";
         X86State state = {};
         state.gpr.rcx.qword = 0x123;
         state.gpr.rip.qword = ip;
@@ -153,18 +157,16 @@ int main(int argc, char* argv[]) {
         // Execute the lifted code
         if (!jit.ExecuteFunction(start_name.c_str(), &state, ip, mem.get()))
         {
-            std::cerr << "Failed to execute lifted code\n";
+            LOG(ERROR) << "Failed to execute lifted code at IP: 0x" << std::hex << ip;
             return 1;
         }
-
-        llvm::outs() << "Successfully executed lifted code\n";
-        llvm::outs() << "State: rip: " << llvm::format_hex(state.gpr.rip.qword, 16) << "\n";
+        VLOG(1) << "Successfully executed lifted code at IP: 0x" << std::hex << ip;
 
         // Print all missing blocks encountered during execution
-        llvm::outs() << "Missing blocks encountered (" << missing_blocks.size() << "):\n";
+        LOG(INFO) << "Missing blocks encountered (" << missing_blocks.size() << "):\n";
         for (const auto &pc : missing_blocks)
         {
-            llvm::outs() << "  0x" << llvm::format_hex(pc, 16) << "\n";
+            LOG(INFO) << "  " << std::hex << pc;
         }
 
         const auto &new_missing_blocks = Runtime::MissingBlockTracker::GetMissingBlocks();
@@ -174,9 +176,14 @@ int main(int argc, char* argv[]) {
         Runtime::MissingBlockTracker::ClearIgnoredAddresses();
         Runtime::MissingBlockTracker::AddIgnoredAddress(ip);
 
-        llvm::outs() << "Total missing blocks: " << missing_blocks.size() << "\n";
+        LOG(INFO) << "Total missing blocks: " << missing_blocks.size();
+
+        if (count > 3) {
+            break;
+        }
 
     }
 
+    LOG(INFO) << "Program completed successfully";
     return 0;
 } 

@@ -36,11 +36,13 @@ XEDDisassembler::DecodeInstruction(const uint8_t* bytes, size_t max_size, uint64
 
     // Get instruction category
     xed_category_enum_t category = xed_decoded_inst_get_category(&xedd);
+    xed_iclass_enum_t iclass = xed_decoded_inst_get_iclass(&xedd);
 
     result.is_branch = (category == XED_CATEGORY_COND_BR || 
                        category == XED_CATEGORY_UNCOND_BR);
     result.is_call = (category == XED_CATEGORY_CALL);
     result.is_ret = (category == XED_CATEGORY_RET);
+    result.is_int3 = (iclass == XED_ICLASS_INT3);
 
     // Get assembly text
     char buffer[256];
@@ -54,5 +56,5 @@ XEDDisassembler::DecodeInstruction(const uint8_t* bytes, size_t max_size, uint64
 }
 
 bool XEDDisassembler::IsTerminator(const DecodedInstruction& inst) const {
-    return inst.is_branch || inst.is_call || inst.is_ret;
+    return inst.is_branch || inst.is_call || inst.is_ret || inst.is_int3;
 } 

@@ -26,7 +26,7 @@ bool MinidumpContext::Initialize() {
         return false;
     }
 
-    LOG(INFO) << "Successfully initialized minidump parser";
+    VLOG(1) << "Successfully initialized minidump parser";
     return true;
 }
 
@@ -39,7 +39,7 @@ uint64_t MinidumpContext::GetInstructionPointer() const {
 
     if (std::holds_alternative<udmpparser::Context64_t>(context)) {
         const auto& ctx64 = std::get<udmpparser::Context64_t>(context);
-        LOG(INFO) << "Found instruction pointer at 0x" << std::hex << ctx64.Rip;
+        VLOG(1) << "Found instruction pointer at 0x" << std::hex << ctx64.Rip;
         return ctx64.Rip;
     }
 
@@ -53,6 +53,6 @@ std::vector<uint8_t> MinidumpContext::ReadMemory(uint64_t address, size_t size) 
         LOG(ERROR) << "Failed to read memory at address: 0x" << std::hex << address;
         return {};
     }
-    LOG(INFO) << "Memory read at address: 0x" << std::hex << address << " size: " << std::dec << memory->size();
+    VLOG(1) << "Memory read at address: 0x" << std::hex << address << " size: " << std::dec << memory->size();
     return *memory;
 } 

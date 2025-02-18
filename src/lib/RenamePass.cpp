@@ -25,6 +25,7 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 #include <llvm/Support/raw_ostream.h>
+#include <glog/logging.h>
 
 llvm::PreservedAnalyses FunctionRenamePass::run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
     processCallInstructions(M);
@@ -48,7 +49,7 @@ void FunctionRenamePass::processCallInstructions(llvm::Module &M) {
                 if (auto *CallInst = llvm::dyn_cast<llvm::CallInst>(&I)) {
                     if (auto Called = CallInst->getCalledFunction()) {
                         // Direct function call
-                        //llvm::outs() << "Found direct call to " << Called->getName() << "\n";
+                        VLOG(1) << "Found direct call to " << Called->getName().str();
                         calledNames.push_back(Called->getName());
                     } else if (auto CalledValue = CallInst->getCalledOperand()) {
                         // Handle indirect calls where the function is loaded from a pointer
@@ -72,12 +73,12 @@ void FunctionRenamePass::processCallInstructions(llvm::Module &M) {
 
 bool FunctionRenamePass::tryRenameFunction(llvm::Module &M, llvm::StringRef CalledName) {
     // Check if the called function exists
-    //llvm::outs() << "Checking if " << CalledName << " exists\n";
+    VLOG(1) << "Checking if " << CalledName.str() << " exists";
     auto *CalledF = M.getFunction(CalledName);
     // check if the function is a declaration
     if (CalledF) {
         if (!CalledF->isDeclaration()) {
-            //llvm::outs() << "Function " << CalledName << " is not a declaration, no need to rename\n";
+            VLOG(1) << "Function " << CalledName.str() << " is not a declaration, no need to rename";
             return false;  // Function exists, no need to rename
         }
     }
@@ -93,7 +94,7 @@ bool FunctionRenamePass::tryRenameFunction(llvm::Module &M, llvm::StringRef Call
     if (CalledF) {
         for (const auto &U : CalledF->users()) {
             if (auto *CallInst = llvm::dyn_cast<llvm::CallInst>(U)) {
-                llvm::outs() << "Updating caller to " << FunctionToRename->getName() << "\n";
+                VLOG(1) << "Updating caller to " << FunctionToRename->getName().str();
                 CallInst->setCalledFunction(FunctionToRename);
             }
         }

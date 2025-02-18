@@ -115,7 +115,7 @@ bool BasicBlockLifter::LiftBlock(
 
     // Initialize architecture if not already done
     if (!arch) {
-        LOG(INFO) << "Creating architecture for windows/amd64";
+        VLOG(1) << "Creating architecture for windows/amd64";
         arch = remill::Arch::Get(*context, "windows", "amd64");
         if (!arch) {
             LOG(ERROR) << "Failed to create architecture";
@@ -132,7 +132,7 @@ bool BasicBlockLifter::LiftBlock(
     }
 
     // Load architecture semantics into module
-    LOG(INFO) << "Loading architecture semantics";
+    VLOG(1) << "Loading architecture semantics";
     auto temp_module = remill::LoadArchSemantics(arch.get());
     if (!temp_module) {
         LOG(ERROR) << "Failed to create module";
@@ -141,7 +141,7 @@ bool BasicBlockLifter::LiftBlock(
 
     // Initialize intrinsics if not already done
     if (!intrinsics) {
-        LOG(INFO) << "Initializing intrinsics table";
+        VLOG(1) << "Initializing intrinsics table";
         intrinsics = std::make_unique<remill::IntrinsicTable>(temp_module.get());
         if (!VerifyIntrinsics()) {
             LOG(ERROR) << "Failed to verify critical intrinsics";
@@ -153,7 +153,7 @@ bool BasicBlockLifter::LiftBlock(
     remill::TraceLifter inst_lifter(arch.get(), inst_manager);
 
     // Lift the trace starting at our block address
-    LOG(INFO) << "Lifting trace at address 0x" << std::hex << block_addr;
+    VLOG(1) << "Lifting trace at address 0x" << std::hex << block_addr;
     if (!inst_lifter.Lift(block_addr)) {
         LOG(ERROR) << "Failed to lift trace at address 0x" << std::hex << block_addr;
         return false;
@@ -165,15 +165,14 @@ bool BasicBlockLifter::LiftBlock(
 
     // Create destination module if it doesn't exist
     if (!dest_module) {
-        LOG(INFO) << "Creating new destination module";
+        VLOG(1) << "Creating new destination module";
         dest_module = std::make_unique<llvm::Module>("lifted_code", *context);
         arch->PrepareModuleDataLayout(dest_module.get());
     }
 
     // Move the lifted functions into the destination module
     for (auto &lifted_entry : inst_manager.traces) {
-        LOG(INFO) << "Moving function into destination module";
-
+        LOG(INFO) << "Moving function '" << lifted_entry.second->getName().str() << "' into destination module";
         remill::MoveFunctionIntoModule(lifted_entry.second, dest_module.get());
     }
 

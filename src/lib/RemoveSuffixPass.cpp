@@ -20,6 +20,7 @@
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 #include <llvm/Support/raw_ostream.h>
 #include <set>
+#include <glog/logging.h>
 
 llvm::PreservedAnalyses FunctionRemoveSuffixPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
     processCallInstructions(M);
@@ -38,7 +39,7 @@ void FunctionRemoveSuffixPass::processCallInstructions(llvm::Module &M) {
         
         llvm::StringRef Name = F.getName();
         if (Name.endswith(".1")) {
-            //llvm::outs() << "Found function with .1 suffix: " << Name << "\n";
+            VLOG(1) << "Found function with .1 suffix: " << Name.str();
             functionsToProcess.push_back(&F);
         }
     }
@@ -54,11 +55,11 @@ bool FunctionRemoveSuffixPass::tryRemoveSuffix(llvm::Module &M, llvm::Function *
     
     // Get the name without ".1" suffix
     std::string NameWithoutSuffix = NameWithSuffix.substr(0, NameWithSuffix.size() - 2).str();
-    //llvm::outs() << "Trying to remove suffix from " << NameWithSuffix << " to " << NameWithoutSuffix << "\n";
+    VLOG(1) << "Trying to remove suffix from " << NameWithSuffix.str() << " to " << NameWithoutSuffix;
     // Check if the function without suffix exists
     auto *TargetFunction = M.getFunction(NameWithoutSuffix);
     if (!TargetFunction) {
-        //llvm::outs() << "Function without suffix doesn't exist\n";
+        VLOG(1) << "Function without suffix doesn't exist";
         return false;  // Function without suffix doesn't exist
     }
 
@@ -81,7 +82,7 @@ bool FunctionRemoveSuffixPass::tryRemoveSuffix(llvm::Module &M, llvm::Function *
         //llvm::outs() << "User of " << NameWithSuffix << ": " << U->getName() << "\n";
         if (auto *CallInst = llvm::dyn_cast<llvm::CallInst>(U)) {
             HasUsers = true;
-            llvm::outs() << "Updating caller of " << NameWithSuffix << " to " << NameWithoutSuffix << "\n";
+            LOG(INFO) << "Updating caller of " << NameWithSuffix.str() << " to " << NameWithoutSuffix;
             CallInst->setCalledFunction(TargetFunction);
         }
     }
@@ -109,7 +110,7 @@ bool FunctionRemoveSuffixPass::tryRemoveSuffix(llvm::Module &M, llvm::Function *
             
             // If global is exclusively used by this function, remove it
             if (isExclusiveToThisFunction) {
-                llvm::outs() << "Removing global variable '" << GV->getName() << "' exclusively used by " << NameWithSuffix << "\n";
+                LOG(INFO) << "Removing global variable '" << GV->getName().str() << "' exclusively used by " << NameWithSuffix.str();
                 
                 // First remove all uses of this global
                 while (!GV->use_empty()) {

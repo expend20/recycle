@@ -31,6 +31,7 @@ struct DecodedInstruction {
     bool is_branch;
     bool is_call;
     bool is_ret;
+    bool is_int3;
     std::string assembly;  // Assembly text representation
 };
 
