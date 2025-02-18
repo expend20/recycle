@@ -3,23 +3,28 @@
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 
 llvm::PreservedAnalyses FunctionLoggingPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
-    // Declare the logging function if it doesn't exist
-    llvm::FunctionType *LogFuncType = llvm::FunctionType::get(
-        llvm::Type::getVoidTy(M.getContext()),
-        {llvm::Type::getInt8PtrTy(M.getContext())},
-        false
-    );
+    // First check if logging function already exists
+    llvm::Function *LogFunc = M.getFunction("__remill_log_function");
     
-    llvm::Function *LogFunc = llvm::Function::Create(
-        LogFuncType,
-        llvm::Function::ExternalLinkage,
-        "__remill_log_function",
-        &M
-    );
-
     if (!LogFunc) {
-        llvm::outs() << "Failed to create __remill_log_function\n";
-        return llvm::PreservedAnalyses::none();
+        // Declare the logging function if it doesn't exist
+        llvm::FunctionType *LogFuncType = llvm::FunctionType::get(
+            llvm::Type::getVoidTy(M.getContext()),
+            {llvm::Type::getInt8PtrTy(M.getContext())},
+            false
+        );
+        
+        LogFunc = llvm::Function::Create(
+            LogFuncType,
+            llvm::Function::ExternalLinkage,
+            "__remill_log_function",
+            &M
+        );
+
+        if (!LogFunc) {
+            llvm::outs() << "Failed to create __remill_log_function\n";
+            return llvm::PreservedAnalyses::none();
+        }
     }
 
     // Add logging to each function in the module
@@ -33,6 +38,18 @@ llvm::PreservedAnalyses FunctionLoggingPass::run(llvm::Module &M, llvm::ModuleAn
 }
 
 void FunctionLoggingPass::insertLogging(llvm::Function &F, llvm::Function *LogFunc) {
+    // Check if function already has a logging call
+    for (auto &BB : F) {
+        for (auto &I : BB) {
+            if (auto *Call = llvm::dyn_cast<llvm::CallInst>(&I)) {
+                if (Call->getCalledFunction() == LogFunc) {
+                    // Function already has logging, skip it
+                    return;
+                }
+            }
+        }
+    }
+
     llvm::IRBuilder<> Builder(&*F.getEntryBlock().getFirstInsertionPt());
     
     // Create a global string with the function name

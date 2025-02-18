@@ -40,7 +40,7 @@ public:
     explicit MinidumpContext(const std::string& dump_path);
     bool Initialize();
     uint64_t GetInstructionPointer() const;
-    std::vector<uint8_t> ReadMemoryAtIP(size_t size) const;
+    std::vector<uint8_t> ReadMemory(uint64_t address, size_t size) const;
 
 private:
     std::unique_ptr<udmpparser::UserDumpParser> parser;
@@ -77,16 +77,17 @@ private:
 // Class to handle lifting to LLVM IR using Remill
 class BasicBlockLifter {
 public:
-    BasicBlockLifter();
+    explicit BasicBlockLifter(llvm::LLVMContext &context);
     
     bool LiftBlock(const std::vector<DecodedInstruction>& instructions,
                    uint64_t block_addr);
     
     llvm::Module* GetModule() { return dest_module.get(); }
     std::unique_ptr<llvm::Module> TakeModule() { return std::move(dest_module); }
+    void PushModule(std::unique_ptr<llvm::Module> module);
 
 private:
-    std::unique_ptr<llvm::LLVMContext> context;
+    llvm::LLVMContext* context;
     std::unique_ptr<llvm::Module> dest_module;
     remill::Arch::ArchPtr arch;
     std::unique_ptr<remill::IntrinsicTable> intrinsics;

@@ -39,9 +39,6 @@ bool JITEngine::Initialize(std::unique_ptr<llvm::Module> module) {
     module->setDataLayout(TM->createDataLayout());
     module->setTargetTriple(llvm::sys::getProcessTriple());
 
-    // Print the lifted LLVM IR using MiscUtils
-    MiscUtils::DumpModule(*module, "lifted.ll");
-
     // Create execution engine
     llvm::outs() << "Creating execution engine\n";
     std::string ErrStr;
@@ -70,6 +67,7 @@ bool JITEngine::Initialize(std::unique_ptr<llvm::Module> module) {
         {"__remill_log_function", reinterpret_cast<void*>(Runtime::__remill_log_function)},
         {"__remill_missing_block", reinterpret_cast<void*>(Runtime::__remill_missing_block)},
         {"__remill_write_memory_64", reinterpret_cast<void*>(Runtime::__remill_write_memory_64)},
+        {"__remill_async_hyper_call", reinterpret_cast<void*>(Runtime::__remill_async_hyper_call)},
     };
 
     for (const auto& func : externalFuncs) {

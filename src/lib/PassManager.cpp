@@ -1,6 +1,7 @@
 #include "PassManager.h"
 #include "LoggingPass.h"
 #include "RenamePass.h"
+#include "RemoveSuffixPass.h"
 #include <llvm/IR/PassManager.h>
 #include <llvm/Passes/PassBuilder.h>
 
@@ -28,5 +29,12 @@ void PassManagerWrapper::ApplyRenamePass(llvm::Module* module) {
     // Create and run the rename pass
     llvm::ModulePassManager MPM;
     MPM.addPass(FunctionRenamePass());
+    MPM.run(*module, MAM);
+}
+
+void PassManagerWrapper::ApplyRemoveSuffixPass(llvm::Module* module) {
+    // Create and run the remove suffix pass
+    llvm::ModulePassManager MPM;
+    MPM.addPass(FunctionRemoveSuffixPass());
     MPM.run(*module, MAM);
 } 

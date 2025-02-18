@@ -47,13 +47,12 @@ uint64_t MinidumpContext::GetInstructionPointer() const {
     return 0;
 }
 
-std::vector<uint8_t> MinidumpContext::ReadMemoryAtIP(size_t size) const {
-    uint64_t ip = GetInstructionPointer();
-    auto memory = parser->ReadMemory(ip, size);
+std::vector<uint8_t> MinidumpContext::ReadMemory(uint64_t address, size_t size) const {
+    auto memory = parser->ReadMemory(address, size);
     if (!memory) {
-        LOG(ERROR) << "Failed to read memory at IP: 0x" << std::hex << ip;
+        LOG(ERROR) << "Failed to read memory at address: 0x" << std::hex << address;
         return {};
     }
-    LOG(INFO) << "Memory read at IP: 0x" << std::hex << ip << " size: " << std::dec << memory->size();
+    LOG(INFO) << "Memory read at address: 0x" << std::hex << address << " size: " << std::dec << memory->size();
     return *memory;
 } 

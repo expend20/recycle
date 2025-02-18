@@ -18,6 +18,9 @@ public:
     // Apply the function rename pass to the given module
     void ApplyRenamePass(llvm::Module* module);
 
+    // Apply the remove suffix pass to the given module
+    void ApplyRemoveSuffixPass(llvm::Module* module);
+
 private:
     // Analysis managers
     llvm::LoopAnalysisManager LAM;

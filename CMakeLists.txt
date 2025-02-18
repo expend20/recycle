@@ -65,6 +65,7 @@ add_executable(recycle
     src/lib/JITEngine.cpp
     src/lib/JITRuntime.cpp
     src/lib/LoggingPass.cpp
+    src/lib/RemoveSuffixPass.cpp
     src/lib/PassManager.cpp
     src/lib/RenamePass.cpp
     src/lib/MiscUtils.cpp

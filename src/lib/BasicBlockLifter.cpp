@@ -78,7 +78,7 @@ public:
     std::unordered_map<uint64_t, llvm::Function *> traces;
 };
 
-BasicBlockLifter::BasicBlockLifter() : context(std::make_unique<llvm::LLVMContext>()) {}
+BasicBlockLifter::BasicBlockLifter(llvm::LLVMContext &context) : context(&context) {}
 
 bool BasicBlockLifter::VerifyIntrinsics() {
     if (!intrinsics->error) {
@@ -163,12 +163,17 @@ bool BasicBlockLifter::LiftBlock(
     remill::OptimizationGuide guide = {};
     remill::OptimizeModule(arch, temp_module, inst_manager.traces, guide);
 
-    // Create destination module and prepare it
-    dest_module = std::make_unique<llvm::Module>("lifted_code", *context);
-    arch->PrepareModuleDataLayout(dest_module.get());
+    // Create destination module if it doesn't exist
+    if (!dest_module) {
+        LOG(INFO) << "Creating new destination module";
+        dest_module = std::make_unique<llvm::Module>("lifted_code", *context);
+        arch->PrepareModuleDataLayout(dest_module.get());
+    }
 
     // Move the lifted functions into the destination module
     for (auto &lifted_entry : inst_manager.traces) {
+        LOG(INFO) << "Moving function into destination module";
+
         remill::MoveFunctionIntoModule(lifted_entry.second, dest_module.get());
     }
 
