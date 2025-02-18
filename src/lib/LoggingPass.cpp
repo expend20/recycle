@@ -11,7 +11,7 @@ llvm::PreservedAnalyses FunctionLoggingPass::run(llvm::Module &M, llvm::ModuleAn
         // Declare the logging function if it doesn't exist
         llvm::FunctionType *LogFuncType = llvm::FunctionType::get(
             llvm::Type::getVoidTy(M.getContext()),
-            {llvm::Type::getInt8PtrTy(M.getContext())},
+            {llvm::Type::getInt8PtrTy(M.getContext()), llvm::Type::getInt64Ty(M.getContext())},
             false
         );
         
@@ -74,6 +74,20 @@ void FunctionLoggingPass::insertLogging(llvm::Function &F, llvm::Function *LogFu
         llvm::Type::getInt8PtrTy(F.getContext())
     );
 
-    // Insert the call to logging function
-    Builder.CreateCall(LogFunc, {StrPtr});
+    // Get the program_counter argument
+    llvm::Value *ProgramCounter = nullptr;
+    for (auto &Arg : F.args()) {
+        if (Arg.getArgNo() == 1) { // program_counter is the second argument
+            ProgramCounter = &Arg;
+            break;
+        }
+    }
+
+    // Insert the call to logging function with both the string and program counter
+    if (ProgramCounter) {
+        Builder.CreateCall(LogFunc, {StrPtr, ProgramCounter});
+    } else {
+        // If no program counter available, use 0 as default
+        Builder.CreateCall(LogFunc, {StrPtr, llvm::ConstantInt::get(llvm::Type::getInt64Ty(F.getContext()), 0)});
+    }
 } 

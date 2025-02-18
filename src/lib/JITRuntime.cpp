@@ -60,8 +60,8 @@ void* __remill_write_memory_64(void* memory, uint64_t addr, uint64_t value) {
     return memory;
 }
 
-void __remill_log_function(const char* func_name) {
-    LOG(INFO) << "JRT: Entering function: " << func_name;
+void __remill_log_function(const char* func_name, uint64_t pc) {
+    LOG(INFO) << "JRT: Entering function: " << func_name << " at PC: 0x" << std::hex << pc;
 }
 
 void* __remill_async_hyper_call(void* memory, uint64_t addr, uint64_t value) {

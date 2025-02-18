@@ -28,7 +28,7 @@ extern "C" {
     void* __remill_write_memory_64(void* memory, uint64_t addr, uint64_t value);
     void* __remill_async_hyper_call(void* memory, uint64_t addr, uint64_t value);
     
-    void __remill_log_function(const char* func_name);
+    void __remill_log_function(const char* func_name, uint64_t pc);
 }
 
 } // namespace Runtime 

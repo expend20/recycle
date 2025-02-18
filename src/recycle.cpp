@@ -63,20 +63,20 @@ int main(int argc, char* argv[]) {
     Runtime::MissingBlockTracker::AddIgnoredAddress(0x140001862);
 
     std::vector<uint64_t> missing_blocks;
-    missing_blocks.push_back(context.GetInstructionPointer());
+    const auto entry_point = context.GetInstructionPointer();
+    missing_blocks.push_back(entry_point);
     VLOG(1) << "Starting disassembly from instruction pointer: 0x" 
-              << std::hex << missing_blocks[0];
+              << std::hex << entry_point;
 
     std::stringstream ss;
-    ss << "sub_" << std::hex << missing_blocks[0];
-    const auto start_name = ss.str();
+    ss << "sub_" << std::hex << entry_point;
+    const auto entry_point_name = ss.str();
 
     // clone the module
     std::unique_ptr<llvm::Module> saved_module;
-    size_t count = 0;
+    std::vector<uint64_t> lifted_ips;
 
     while (missing_blocks.size() > 0) {
-        count++;
         LOG(INFO) << std::endl;
 
         BasicBlockLifter lifter(*llvm_context);
@@ -84,7 +84,7 @@ int main(int argc, char* argv[]) {
         // pop first block from missing_blocks
         uint64_t ip = missing_blocks.back();
         missing_blocks.pop_back();
-        LOG(INFO) << "Lifting block #" << count << " at IP: 0x" << std::hex << ip;
+        LOG(INFO) << "Lifting block #" << lifted_ips.size() << " at IP: 0x" << std::hex << ip;
 
         auto memory = context.ReadMemory(ip, 256); // Read enough for a basic block
         if (memory.empty())
@@ -130,7 +130,7 @@ int main(int argc, char* argv[]) {
 
         // log .ll file
         std::stringstream ss;
-        ss << "lifted-" << count << "-" << std::hex << ip << ".ll"; 
+        ss << "lifted-" << std::setfill('0') << std::setw(3) << lifted_ips.size() << "-" << std::hex << ip << ".ll";
         const auto filename = ss.str();
         MiscUtils::DumpModule(*saved_module, filename);
 
@@ -147,7 +147,7 @@ int main(int argc, char* argv[]) {
         // create state and memory
         X86State state = {};
         state.gpr.rcx.qword = 0x123;
-        state.gpr.rip.qword = ip;
+        state.gpr.rip.qword = entry_point;
         const size_t StackSize = 0x100000;
         state.gpr.rsp.qword = StackSize;
 
@@ -155,30 +155,33 @@ int main(int argc, char* argv[]) {
         std::memset(mem.get(), 0, StackSize);
 
         // Execute the lifted code
-        if (!jit.ExecuteFunction(start_name.c_str(), &state, ip, mem.get()))
+        if (!jit.ExecuteFunction(entry_point_name.c_str(), &state, entry_point, mem.get()))
         {
-            LOG(ERROR) << "Failed to execute lifted code at IP: 0x" << std::hex << ip;
+            LOG(ERROR) << "Failed to execute lifted code at IP: 0x" << std::hex << entry_point;
             return 1;
         }
-        VLOG(1) << "Successfully executed lifted code at IP: 0x" << std::hex << ip;
+        VLOG(1) << "Successfully executed lifted code at IP: 0x" << std::hex << entry_point;
 
-        // Print all missing blocks encountered during execution
-        LOG(INFO) << "Missing blocks encountered (" << missing_blocks.size() << "):\n";
-        for (const auto &pc : missing_blocks)
-        {
-            LOG(INFO) << "  " << std::hex << pc;
-        }
 
         const auto &new_missing_blocks = Runtime::MissingBlockTracker::GetMissingBlocks();
+        // Print all missing blocks encountered during execution
+        LOG(INFO) << "New missing blocks encountered (" << new_missing_blocks.size() << "):\n";
+        for (const auto &pc : new_missing_blocks)
+        {
+            LOG(INFO) << "  " << std::hex << pc;
+            missing_blocks.push_back(pc);
+        }
         // merge new_missing_blocks with missing_blocks
-        missing_blocks.insert(missing_blocks.end(), new_missing_blocks.begin(), new_missing_blocks.end());
         // add lifted ip to ignored blocks
-        Runtime::MissingBlockTracker::ClearIgnoredAddresses();
-        Runtime::MissingBlockTracker::AddIgnoredAddress(ip);
+        Runtime::MissingBlockTracker::ClearMissingBlocks();
 
-        LOG(INFO) << "Total missing blocks: " << missing_blocks.size();
+        lifted_ips.push_back(ip);
 
-        if (count > 3) {
+        LOG(INFO) << "Total lifted ips: " << lifted_ips.size();
+        LOG(INFO) << "Total missing blocks atm: " << missing_blocks.size();
+
+
+        if (lifted_ips.size() == 3) {
             break;
         }
 
