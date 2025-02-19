@@ -159,6 +159,7 @@ int main(int argc, char* argv[]) {
 
         // create state and memory
         X86State state = {};
+        state.addr.gs_base.qword = context.GetThreadTebAddress();
         state.gpr.rcx.qword = 0x123;
         state.gpr.rip.qword = entry_point;
         const size_t StackSize = 0x100000;
@@ -194,7 +195,7 @@ int main(int argc, char* argv[]) {
         LOG(INFO) << "Total missing blocks atm: " << missing_blocks.size();
 
 
-        if (lifted_ips.size() == 3) {
+        if (lifted_ips.size() == 4) {
             break;
         }
 

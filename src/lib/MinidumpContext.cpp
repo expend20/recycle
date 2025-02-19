@@ -47,6 +47,7 @@ uint64_t MinidumpContext::GetInstructionPointer() const {
     return 0;
 }
 
+
 std::vector<uint8_t> MinidumpContext::ReadMemory(uint64_t address, size_t size) const {
     auto memory = parser->ReadMemory(address, size);
     if (!memory) {
@@ -55,4 +56,13 @@ std::vector<uint8_t> MinidumpContext::ReadMemory(uint64_t address, size_t size) 
     }
     VLOG(1) << "Memory read at address: 0x" << std::hex << address << " size: " << std::dec << memory->size();
     return *memory;
+}
+
+uint64_t MinidumpContext::GetThreadTebAddress() const {
+    auto foreground_thread_id = parser->GetForegroundThreadId();
+    const auto& threads = parser->GetThreads();
+    auto thread_it = threads.find(*foreground_thread_id);
+    const auto& thread = thread_it->second;
+    VLOG(1) << "Found TEB address at 0x" << std::hex << thread.Teb;
+    return thread.Teb;
 } 
