@@ -48,7 +48,7 @@ void MissingBlockTracker::ClearMissingBlocks() {
 
 extern "C" {
 
-void* __remill_missing_block(void* state, uint64_t pc, void* memory) {
+void* __remill_missing_block_final(void* state, uint64_t pc, void* memory) {
     LOG(INFO) << "JRT: Missing block at PC: 0x" << std::hex << pc;
     MissingBlockTracker::AddMissingBlock(pc);
     return memory;

@@ -75,6 +75,8 @@ int main(int argc, char* argv[]) {
     // clone the module
     std::unique_ptr<llvm::Module> saved_module;
     std::vector<uint64_t> lifted_ips;
+    // Track function names for each lifted block
+    std::vector<std::pair<uint64_t, std::string>> addr_to_func_map;
 
     while (missing_blocks.size() > 0) {
         LOG(INFO) << std::endl;
@@ -113,6 +115,14 @@ int main(int argc, char* argv[]) {
         // Get the module from lifter
         auto lifted_module = lifter.TakeModule();
 
+        // Create function name for this block
+        std::stringstream block_ss;
+        block_ss << "sub_" << std::hex << ip;
+        const auto block_func_name = block_ss.str();
+        
+        // Add mapping for this block
+        addr_to_func_map.emplace_back(ip, block_func_name);
+
         // save the module
         if (saved_module == nullptr) {
             saved_module = MiscUtils::CloneModule(*lifted_module);
@@ -128,13 +138,16 @@ int main(int argc, char* argv[]) {
         pass_manager.ApplyRemoveSuffixPass(saved_module.get());
         pass_manager.ApplyLoggingPass(saved_module.get());
 
+        // Add missing block handler with current mappings
+        MiscUtils::AddMissingBlockHandler(*saved_module, addr_to_func_map);
+
         // log .ll file
         std::stringstream ss;
         ss << "lifted-" << std::setfill('0') << std::setw(3) << lifted_ips.size() << "-" << std::hex << ip << ".ll";
         const auto filename = ss.str();
         MiscUtils::DumpModule(*saved_module, filename);
 
-        // Initialize JIT engine
+        // Initialize JIT engine with the updated module that includes the missing block handler
         auto jit_module = MiscUtils::CloneModule(*saved_module);
         JITEngine jit;
         if (!jit.Initialize(std::move(jit_module)))
