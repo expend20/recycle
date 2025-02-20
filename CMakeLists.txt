@@ -1,4 +1,9 @@
 cmake_minimum_required(VERSION 3.14)
+
+# Set Clang as the compiler
+set(CMAKE_C_COMPILER clang)
+set(CMAKE_CXX_COMPILER clang++)
+
 project(remill_test)
 
 # Enable verbose output
@@ -50,7 +55,24 @@ message(STATUS "XED library: ${XED_LIB}")
 message(STATUS "XED ILD library: ${XED_ILD_LIB}")
 message(STATUS "XED include: ${XED_INCLUDE}")
 
-# Add executables
+# Custom commands to generate LLVM IR in readable format
+add_custom_command(
+    OUTPUT ${CMAKE_BINARY_DIR}/Utils.ll
+    COMMAND ${CMAKE_CXX_COMPILER} -S -emit-llvm 
+            -I${REMILL_INCLUDE_DIRS}
+            -I${CMAKE_SOURCE_DIR}/src/include
+            ${CMAKE_SOURCE_DIR}/src/lib/prebuilt/Utils.cpp 
+            -o ${CMAKE_BINARY_DIR}/Utils.ll
+    DEPENDS src/lib/prebuilt/Utils.cpp
+    COMMENT "Generating readable LLVM IR from Utils.cpp"
+)
+
+# Custom target for the LLVM IR files
+add_custom_target(prebuilt_ir ALL
+    DEPENDS 
+        ${CMAKE_BINARY_DIR}/Utils.ll
+)
+
 add_executable(remill_test src/test/remill_test.cpp)
 add_executable(minidump_test src/test/minidump_test.cpp)
 add_executable(llvm_jit_test src/test/llvm_jit_test.cpp)
@@ -69,6 +91,14 @@ add_executable(recycle
     src/lib/PassManager.cpp
     src/lib/RenamePass.cpp
     src/lib/MiscUtils.cpp
+)
+
+# Make recycle depend on the LLVM IR generation
+add_dependencies(recycle prebuilt_ir)
+
+# Pass build directory to code
+target_compile_definitions(recycle PRIVATE
+    CMAKE_BINARY_DIR="${CMAKE_BINARY_DIR}"
 )
 
 # Include directories

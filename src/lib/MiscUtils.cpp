@@ -7,6 +7,7 @@
 #include <llvm/IR/Constants.h>
 #include <glog/logging.h>
 #include <set>
+#include "remill/Arch/X86/Runtime/State.h"
 
 namespace MiscUtils {
 
@@ -154,6 +155,56 @@ void AddMissingBlockHandler(llvm::Module& M,
     }
     
     VLOG(1) << "Successfully updated missing block handler with " << addr_to_func.size() << " new mappings";
+}
+
+llvm::Function* CreateEntryWithState(llvm::Module& M) {
+    auto& context = M.getContext();
+
+    // Create function type for entry: void entry()
+    auto voidTy = llvm::Type::getVoidTy(context);
+    auto funcTy = llvm::FunctionType::get(voidTy, false);
+    
+    // Create the entry function
+    auto func = llvm::Function::Create(
+        funcTy, 
+        llvm::Function::ExternalLinkage,
+        "entry", 
+        &M);
+
+    // Create entry basic block
+    auto entryBB = llvm::BasicBlock::Create(context, "entry", func);
+    llvm::IRBuilder<> builder(entryBB);
+
+    // Get X86State type
+    auto stateTy = llvm::StructType::getTypeByName(context, "struct.State");
+    if (!stateTy) {
+        LOG(ERROR) << "Could not find State type in module";
+        return nullptr;
+    }
+
+    // Create X86State variable on the stack
+    auto statePtr = builder.CreateAlloca(stateTy, nullptr, "state");
+
+    // Zero initialize the state
+    builder.CreateMemSet(
+        statePtr, 
+        builder.getInt8(0), 
+        llvm::ConstantExpr::getSizeOf(stateTy), 
+        llvm::MaybeAlign(16));
+
+    // Add return instruction
+    builder.CreateRetVoid();
+
+    // Verify the function
+    std::string err;
+    llvm::raw_string_ostream errStream(err);
+    if (llvm::verifyFunction(*func, &errStream)) {
+        LOG(ERROR) << "Failed to verify entry function: " << err;
+        func->eraseFromParent();
+        return nullptr;
+    }
+
+    return func;
 }
 
 } // namespace MiscUtils 

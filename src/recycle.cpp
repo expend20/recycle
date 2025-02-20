@@ -10,6 +10,8 @@
 #include <llvm/Support/Format.h>
 #include <llvm/IR/PassManager.h>
 #include <llvm/Passes/PassBuilder.h>
+#include <llvm/IRReader/IRReader.h>
+#include <llvm/Support/SourceMgr.h>
 #include <glog/logging.h>
 
 // jit
@@ -26,6 +28,11 @@
 #include "remill/Arch/X86/Runtime/State.h"
 
 using namespace llvm;
+
+// Define CMAKE_BINARY_DIR for development
+#ifndef CMAKE_BINARY_DIR
+#define CMAKE_BINARY_DIR "build"
+#endif
 
 int main(int argc, char* argv[]) {
     // Initialize Google logging
@@ -141,6 +148,23 @@ int main(int argc, char* argv[]) {
         // Add missing block handler with current mappings
         MiscUtils::AddMissingBlockHandler(*saved_module, addr_to_func_map);
 
+        // Read and merge the prebuilt bitcode modules
+        llvm::SMDiagnostic Err;
+        auto utils_module = llvm::parseIRFile(
+            (std::string(CMAKE_BINARY_DIR) + "/Utils.ll").c_str(),
+            Err,
+            saved_module->getContext()
+        );
+        if (!utils_module) {
+            LOG(ERROR) << "Failed to load Utils.ll module: " << Err.getMessage().str();
+            return 1;
+        }
+
+        // Merge the modules
+        MiscUtils::MergeModules(*saved_module, *utils_module);
+
+        MiscUtils::CreateEntryWithState(*saved_module);
+
         // log .ll file
         std::stringstream ss;
         ss << "lifted-" << std::setfill('0') << std::setw(3) << lifted_ips.size() << "-" << std::hex << ip << ".ll";
@@ -195,7 +219,7 @@ int main(int argc, char* argv[]) {
         LOG(INFO) << "Total missing blocks atm: " << missing_blocks.size();
 
 
-        if (lifted_ips.size() == 4) {
+        if (lifted_ips.size() == 1) {
             break;
         }
 
