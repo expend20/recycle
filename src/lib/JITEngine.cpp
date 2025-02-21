@@ -66,8 +66,8 @@ bool JITEngine::Initialize(std::unique_ptr<llvm::Module> module) {
     ExternalFunc externalFuncs[] = {
         {"__remill_log_function", reinterpret_cast<void*>(Runtime::__remill_log_function)},
         {"__remill_missing_block_final", reinterpret_cast<void*>(Runtime::__remill_missing_block_final)},
-        {"__remill_write_memory_64", reinterpret_cast<void*>(Runtime::__remill_write_memory_64)},
         {"__remill_async_hyper_call", reinterpret_cast<void*>(Runtime::__remill_async_hyper_call)},
+        {"LogMessage", reinterpret_cast<void*>(Runtime::LogMessage)},
     };
 
     for (const auto& func : externalFuncs) {
@@ -83,14 +83,14 @@ bool JITEngine::Initialize(std::unique_ptr<llvm::Module> module) {
     return true;
 }
 
-bool JITEngine::ExecuteFunction(const std::string& name, void* state, uint64_t pc, void* memory) {
+bool JITEngine::ExecuteFunction(const std::string& name) {
     if (!ExecutionEngine) {
         LOG(ERROR) << "Execution engine not initialized";
         return false;
     }
 
     // find and call the function
-    typedef void* (*FuncType)(void*, uint64_t, void*);
+    typedef void (*FuncType)();
     FuncType Func = reinterpret_cast<FuncType>(ExecutionEngine->getFunctionAddress(name));
     if (!Func) {
         LOG(ERROR) << "Failed to find " << name;
@@ -99,6 +99,6 @@ bool JITEngine::ExecuteFunction(const std::string& name, void* state, uint64_t p
 
     // Call the function
     VLOG(1) << "Calling " << name;
-    Func(state, pc, memory);
+    Func();
     return true;
 } 

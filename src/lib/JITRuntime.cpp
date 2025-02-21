@@ -2,12 +2,47 @@
 #include <glog/logging.h>
 #include <unordered_map>
 #include <algorithm>
+#include <cstdio>
+#include <cstdarg>
 
 namespace Runtime {
 
 // Initialize static members
 std::vector<uint64_t> MissingBlockTracker::missing_blocks;
 std::unordered_set<uint64_t> MissingBlockTracker::ignored_addresses;
+
+extern "C" {
+
+void LogMessage(const char* format, ...) {
+    char buffer[1024];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(buffer, sizeof(buffer), format, args);
+    va_end(args);
+    LOG(INFO) << "JRT: " << buffer;
+}
+
+void* __remill_missing_block_final(void* state, uint64_t pc, void* memory) {
+    LOG(INFO) << "JRT: Missing block at PC: 0x" << std::hex << pc;
+    MissingBlockTracker::AddMissingBlock(pc);
+    return memory;
+}
+
+void* __remill_log_write_memory_64(void* memory, uintptr_t addr, uint64_t val) {
+    LOG(INFO) << "JRT: Writing memory at address: 0x" << std::hex << addr << " with value: 0x" << std::hex << val;
+    return memory;
+}
+
+void __remill_log_function(const char* func_name, uint64_t pc) {
+    LOG(INFO) << "JRT: Entering function: " << func_name << " at PC: 0x" << std::hex << pc;
+}
+
+void* __remill_async_hyper_call(void* state, uint64_t pc, void* memory) {
+    LOG(INFO) << "JRT: Async hyper call at address: 0x" << std::hex << pc;
+    return memory;
+}
+
+} // extern "C"
 
 void MissingBlockTracker::AddMissingBlock(uint64_t pc) {
     if (!IsAddressIgnored(pc)) {
@@ -45,31 +80,5 @@ const std::vector<uint64_t>& MissingBlockTracker::GetMissingBlocks() {
 void MissingBlockTracker::ClearMissingBlocks() {
     missing_blocks.clear();
 }
-
-extern "C" {
-
-void* __remill_missing_block_final(void* state, uint64_t pc, void* memory) {
-    LOG(INFO) << "JRT: Missing block at PC: 0x" << std::hex << pc;
-    MissingBlockTracker::AddMissingBlock(pc);
-    return memory;
-}
-
-void* __remill_write_memory_64(void* memory, uint64_t addr, uint64_t value) {
-    LOG(INFO) << "JRT: Writing memory at address: 0x" << std::hex << addr 
-              << " value: 0x" << value;
-    return memory;
-}
-
-void __remill_log_function(const char* func_name, uint64_t pc) {
-    LOG(INFO) << "JRT: Entering function: " << func_name << " at PC: 0x" << std::hex << pc;
-}
-
-void* __remill_async_hyper_call(void* memory, uint64_t addr, uint64_t value) {
-    LOG(INFO) << "JRT: Async hyper call at address: 0x" << std::hex << addr 
-              << " with value: 0x" << value;
-    return memory;
-}
-
-} // extern "C"
 
 } // namespace Runtime 

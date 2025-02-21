@@ -15,6 +15,6 @@ void DumpModule(const llvm::Module& M, const std::string& filename);
 void AddMissingBlockHandler(llvm::Module& M, 
     const std::vector<std::pair<uint64_t, std::string>>& addr_to_func);
 
-llvm::Function* CreateEntryWithState(llvm::Module& M);
+llvm::Function* CreateEntryWithState(llvm::Module& M, uint64_t PC, uint64_t GSBase, const std::string& TargetFuncName);
 
 } // namespace MiscUtils 

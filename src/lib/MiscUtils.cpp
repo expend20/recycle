@@ -5,6 +5,8 @@
 #include <llvm/IR/Verifier.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Constants.h>
+#include <llvm/IRReader/IRReader.h>
+#include <llvm/Support/SourceMgr.h>
 #include <glog/logging.h>
 #include <set>
 #include "remill/Arch/X86/Runtime/State.h"
@@ -157,8 +159,30 @@ void AddMissingBlockHandler(llvm::Module& M,
     VLOG(1) << "Successfully updated missing block handler with " << addr_to_func.size() << " new mappings";
 }
 
-llvm::Function* CreateEntryWithState(llvm::Module& M) {
+llvm::Function* CreateEntryWithState(llvm::Module& M, uint64_t PC, uint64_t GSBase, const std::string& TargetFuncName) {
     auto& context = M.getContext();
+
+    // check if we need to merge modules (if not merged yet)
+    if (M.getFunction("entry") != nullptr) {
+        LOG(INFO) << "Modules already merged";
+        return nullptr;
+    }
+
+    // Read and merge the prebuilt bitcode modules
+    llvm::SMDiagnostic Err;
+    std::string utils_path = std::string(CMAKE_BINARY_DIR) + "/Utils.ll";
+    LOG(INFO) << "Attempting to load Utils.ll from: " << utils_path;
+
+    auto utils_module = llvm::parseIRFile(
+        utils_path.c_str(),
+        Err,
+        M.getContext());
+    if (!utils_module)
+    {
+        LOG(ERROR) << "Failed to load Utils.ll module: " << Err.getMessage().str();
+        return nullptr;
+    }
+    MiscUtils::MergeModules(M, *utils_module);
 
     // Create function type for entry: void entry()
     auto voidTy = llvm::Type::getVoidTy(context);
@@ -175,31 +199,94 @@ llvm::Function* CreateEntryWithState(llvm::Module& M) {
     auto entryBB = llvm::BasicBlock::Create(context, "entry", func);
     llvm::IRBuilder<> builder(entryBB);
 
-    // Get X86State type
-    auto stateTy = llvm::StructType::getTypeByName(context, "struct.State");
-    if (!stateTy) {
-        LOG(ERROR) << "Could not find State type in module";
+    // Verify the utility module before merging
+    std::string verify_err;
+    llvm::raw_string_ostream errStream(verify_err);
+    if (llvm::verifyModule(*utils_module, &errStream)) {
+        LOG(ERROR) << "Utils module is not valid: " << verify_err;
         return nullptr;
     }
 
-    // Create X86State variable on the stack
-    auto statePtr = builder.CreateAlloca(stateTy, nullptr, "state");
+    // Get the utility functions
+    auto setGSBaseFunc = M.getFunction("SetGSBase");
+    auto setParamsFunc = M.getFunction("SetParameters");
+    auto setStackFunc = M.getFunction("SetStack");
+    auto setPCFunc = M.getFunction("SetPC");
 
-    // Zero initialize the state
-    builder.CreateMemSet(
-        statePtr, 
-        builder.getInt8(0), 
-        llvm::ConstantExpr::getSizeOf(stateTy), 
-        llvm::MaybeAlign(16));
+    if (!setGSBaseFunc || !setParamsFunc || !setStackFunc || !setPCFunc) {
+        LOG(ERROR) << "Failed to find utility functions:"
+                  << (!setGSBaseFunc ? " SetGSBase" : "")
+                  << (!setParamsFunc ? " SetParameters" : "")
+                  << (!setStackFunc ? " SetStack" : "")
+                  << (!setPCFunc ? " SetPC" : "");
+        return nullptr;
+    }
+
+    // Call SetGSBase with GSBase parameter
+    auto gsBaseVal = llvm::ConstantInt::get(llvm::Type::getInt64Ty(context), GSBase);
+    builder.CreateCall(setGSBaseFunc, {gsBaseVal});
+
+    // Call SetParameters
+    builder.CreateCall(setParamsFunc);
+
+    // Call SetStack
+    builder.CreateCall(setStackFunc);
+
+    // Call SetPC with PC parameter
+    auto pcVal = llvm::ConstantInt::get(llvm::Type::getInt64Ty(context), PC);
+    builder.CreateCall(setPCFunc, {pcVal});
+
+    // Get the target function
+    auto targetFunc = M.getFunction(TargetFuncName);
+    if (!targetFunc) {
+        LOG(ERROR) << "Failed to find target function: " << TargetFuncName;
+        func->eraseFromParent();
+        return nullptr;
+    }
+
+    // Get global variables
+    auto stateGlobal = M.getGlobalVariable("State");
+    auto memoryGlobal = M.getGlobalVariable("Memory");
+    auto globalPCGlobal = M.getGlobalVariable("GlobalPC");
+
+    if (!stateGlobal || !memoryGlobal || !globalPCGlobal) {
+        LOG(ERROR) << "Failed to find required globals:"
+                  << (!stateGlobal ? " State" : "")
+                  << (!memoryGlobal ? " Memory" : "")
+                  << (!globalPCGlobal ? " GlobalPC" : "");
+        func->eraseFromParent();
+        return nullptr;
+    }
+
+    // Get state pointer
+    auto statePtr = builder.CreateBitCast(
+        builder.CreateConstGEP1_32(stateGlobal->getValueType(), stateGlobal, 0),
+        builder.getInt8PtrTy());
+
+    // Load memory pointer
+    auto memoryPtr = builder.CreateLoad(memoryGlobal->getValueType(), memoryGlobal);
+
+    // Load PC value
+    auto globalPC = builder.CreateLoad(globalPCGlobal->getValueType(), globalPCGlobal);
+
+    // Call the target function with our constructed arguments
+    builder.CreateCall(targetFunc, {statePtr, globalPC, memoryPtr});
 
     // Add return instruction
     builder.CreateRetVoid();
 
-    // Verify the function
-    std::string err;
-    llvm::raw_string_ostream errStream(err);
+    // First verify the function
+    verify_err.clear();
     if (llvm::verifyFunction(*func, &errStream)) {
-        LOG(ERROR) << "Failed to verify entry function: " << err;
+        LOG(ERROR) << "Failed to verify entry function: " << verify_err;
+        func->eraseFromParent();
+        return nullptr;
+    }
+
+    // Then verify the entire module
+    verify_err.clear();
+    if (llvm::verifyModule(M, &errStream)) {
+        LOG(ERROR) << "Merged module is not valid: " << verify_err;
         func->eraseFromParent();
         return nullptr;
     }

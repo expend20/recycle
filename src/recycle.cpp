@@ -10,8 +10,6 @@
 #include <llvm/Support/Format.h>
 #include <llvm/IR/PassManager.h>
 #include <llvm/Passes/PassBuilder.h>
-#include <llvm/IRReader/IRReader.h>
-#include <llvm/Support/SourceMgr.h>
 #include <glog/logging.h>
 
 // jit
@@ -148,22 +146,7 @@ int main(int argc, char* argv[]) {
         // Add missing block handler with current mappings
         MiscUtils::AddMissingBlockHandler(*saved_module, addr_to_func_map);
 
-        // Read and merge the prebuilt bitcode modules
-        llvm::SMDiagnostic Err;
-        auto utils_module = llvm::parseIRFile(
-            (std::string(CMAKE_BINARY_DIR) + "/Utils.ll").c_str(),
-            Err,
-            saved_module->getContext()
-        );
-        if (!utils_module) {
-            LOG(ERROR) << "Failed to load Utils.ll module: " << Err.getMessage().str();
-            return 1;
-        }
-
-        // Merge the modules
-        MiscUtils::MergeModules(*saved_module, *utils_module);
-
-        MiscUtils::CreateEntryWithState(*saved_module);
+        MiscUtils::CreateEntryWithState(*saved_module, entry_point, context.GetThreadTebAddress(), entry_point_name);
 
         // log .ll file
         std::stringstream ss;
@@ -181,19 +164,8 @@ int main(int argc, char* argv[]) {
         }
         VLOG(1) << "Successfully initialized JIT engine";
 
-        // create state and memory
-        X86State state = {};
-        state.addr.gs_base.qword = context.GetThreadTebAddress();
-        state.gpr.rcx.qword = 0x123;
-        state.gpr.rip.qword = entry_point;
-        const size_t StackSize = 0x100000;
-        state.gpr.rsp.qword = StackSize;
-
-        auto mem = std::make_unique<char[]>(StackSize);
-        std::memset(mem.get(), 0, StackSize);
-
         // Execute the lifted code
-        if (!jit.ExecuteFunction(entry_point_name.c_str(), &state, entry_point, mem.get()))
+        if (!jit.ExecuteFunction("entry"))
         {
             LOG(ERROR) << "Failed to execute lifted code at IP: 0x" << std::hex << entry_point;
             return 1;
@@ -219,7 +191,7 @@ int main(int argc, char* argv[]) {
         LOG(INFO) << "Total missing blocks atm: " << missing_blocks.size();
 
 
-        if (lifted_ips.size() == 1) {
+        if (lifted_ips.size() == 2) {
             break;
         }
 

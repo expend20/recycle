@@ -14,7 +14,7 @@ public:
     bool Initialize(std::unique_ptr<llvm::Module> module = nullptr);
 
     // Execute a specific function from the module
-    bool ExecuteFunction(const std::string& name, void* state, uint64_t pc, void* memory);
+    bool ExecuteFunction(const std::string& name);
 
 private:
     std::unique_ptr<llvm::ExecutionEngine> ExecutionEngine;
