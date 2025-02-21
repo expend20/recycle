@@ -86,7 +86,7 @@ add_executable(recycle
     src/lib/BasicBlockDisassembler.cpp
     src/lib/JITEngine.cpp
     src/lib/JITRuntime.cpp
-    src/lib/LoggingPass.cpp
+    src/lib/bitcode_manipulation/InsertLogging.cpp
     src/lib/RemoveSuffixPass.cpp
     src/lib/PassManager.cpp
     src/lib/RenamePass.cpp
@@ -114,6 +114,7 @@ target_include_directories(minidump_test PRIVATE
 
 target_include_directories(recycle PRIVATE
     ${CMAKE_SOURCE_DIR}/src/include
+    ${CMAKE_SOURCE_DIR}/src/lib
     ${CMAKE_SOURCE_DIR}
     ${LLVM_INCLUDE_DIRS}
     ${REMILL_INCLUDE_DIRS}

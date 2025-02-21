@@ -23,12 +23,14 @@ void SetParameters()
 
 void SetPC(uint64_t pc)
 {
+    Runtime::LogMessage("[pc] SetPC: 0x%lx", pc);
     GlobalPC = pc;
     State.gpr.rip.qword = pc;
 }
 
 void SetStack()
 {
+    Runtime::LogMessage("[stack] SetStack: [0x%lx:0x%lx], size: 0x%lx", StackBase, StackBase + StackSize, StackSize);
     State.gpr.rsp.qword = StackBase + StackSize;
 }
 
@@ -50,9 +52,7 @@ void InitializeX86AddressSpace(
 
 void* __remill_write_memory_64(void *memory, addr_t addr, uint64_t val) {
     if (addr >= StackBase && addr < StackBase + StackSize) {
-        Runtime::LogMessage("StackBase: 0x%lx", StackBase);
-        Runtime::LogMessage("StackEnd: 0x%lx", StackBase + StackSize);
-        Runtime::LogMessage("__remill_write_memory_64: [0x%lx] = 0x%lx", addr, val);
+        Runtime::LogMessage("[stack] __remill_write_memory_64: [0x%lx] = 0x%lx", addr, val);
         *(uint64_t*)addr = val;
         return memory;
     }

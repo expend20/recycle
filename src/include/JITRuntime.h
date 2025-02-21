@@ -27,8 +27,6 @@ extern "C" {
     void* __remill_missing_block_final(void* state, uint64_t pc, void* memory);
     void* __remill_log_write_memory_64(void* memory, uintptr_t addr, uint64_t val);
     void* __remill_async_hyper_call(void* state, uint64_t pc, void* memory);
-    void __remill_log_function(const char* func_name, uint64_t pc);
-    
     // Variadic logging function
     void LogMessage(const char* format, ...);
 }

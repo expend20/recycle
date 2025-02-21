@@ -64,7 +64,6 @@ bool JITEngine::Initialize(std::unique_ptr<llvm::Module> module) {
     };
 
     ExternalFunc externalFuncs[] = {
-        {"__remill_log_function", reinterpret_cast<void*>(Runtime::__remill_log_function)},
         {"__remill_missing_block_final", reinterpret_cast<void*>(Runtime::__remill_missing_block_final)},
         {"__remill_async_hyper_call", reinterpret_cast<void*>(Runtime::__remill_async_hyper_call)},
         {"LogMessage", reinterpret_cast<void*>(Runtime::LogMessage)},

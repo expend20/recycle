@@ -1,9 +1,9 @@
 #include "recycle.h"
 #include "JITEngine.h"
 #include "JITRuntime.h"
-#include "LoggingPass.h"
 #include "PassManager.h"
 #include "MiscUtils.h"
+#include "bitcode_manipulation/InsertLogging.h"
 #include <iostream>
 #include <sstream>
 #include <llvm/Support/raw_ostream.h>
@@ -141,7 +141,7 @@ int main(int argc, char* argv[]) {
         PassManagerWrapper pass_manager;
         pass_manager.ApplyRenamePass(saved_module.get());
         pass_manager.ApplyRemoveSuffixPass(saved_module.get());
-        pass_manager.ApplyLoggingPass(saved_module.get());
+        BitcodeTools::InsertFunctionLogging(*saved_module);
 
         // Add missing block handler with current mappings
         MiscUtils::AddMissingBlockHandler(*saved_module, addr_to_func_map);

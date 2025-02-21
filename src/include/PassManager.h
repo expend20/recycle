@@ -12,9 +12,6 @@ class PassManagerWrapper {
 public:
     PassManagerWrapper();
 
-    // Apply the logging pass to the given module
-    void ApplyLoggingPass(llvm::Module* module);
-
     // Apply the function rename pass to the given module
     void ApplyRenamePass(llvm::Module* module);
 

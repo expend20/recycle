@@ -1,5 +1,4 @@
 #include "PassManager.h"
-#include "LoggingPass.h"
 #include "RenamePass.h"
 #include "RemoveSuffixPass.h"
 #include <llvm/IR/PassManager.h>
@@ -16,13 +15,6 @@ void PassManagerWrapper::InitializePassInfrastructure() {
     PB.registerFunctionAnalyses(FAM);
     PB.registerLoopAnalyses(LAM);
     PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
-}
-
-void PassManagerWrapper::ApplyLoggingPass(llvm::Module* module) {
-    // Create and run the logging pass
-    llvm::ModulePassManager MPM;
-    MPM.addPass(FunctionLoggingPass());
-    MPM.run(*module, MAM);
 }
 
 void PassManagerWrapper::ApplyRenamePass(llvm::Module* module) {
