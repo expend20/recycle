@@ -28,11 +28,6 @@ void* __remill_missing_block_final(void* state, uint64_t pc, void* memory) {
     return memory;
 }
 
-void* __remill_log_write_memory_64(void* memory, uintptr_t addr, uint64_t val) {
-    LOG(INFO) << "JRT: Writing memory at address: 0x" << std::hex << addr << " with value: 0x" << std::hex << val;
-    return memory;
-}
-
 void* __remill_async_hyper_call(void* state, uint64_t pc, void* memory) {
     LOG(INFO) << "JRT: Async hyper call at address: 0x" << std::hex << pc;
     return memory;

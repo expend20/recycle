@@ -195,7 +195,7 @@ int main(int argc, char* argv[]) {
         LOG(INFO) << "Total missing blocks atm: " << missing_blocks.size();
 
 
-        if (lifted_ips.size() == 2) {
+        if (lifted_ips.size() == 4) {
             break;
         }
 

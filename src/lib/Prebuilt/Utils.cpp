@@ -23,14 +23,14 @@ void SetParameters()
 
 void SetPC(uint64_t pc)
 {
-    Runtime::LogMessage("[pc] SetPC: 0x%lx", pc);
+    Runtime::LogMessage("[Utils] SetPC: 0x%lx", pc);
     GlobalPC = pc;
     State.gpr.rip.qword = pc;
 }
 
 void SetStack()
 {
-    Runtime::LogMessage("[stack] SetStack: [0x%lx:0x%lx], size: 0x%lx", StackBase, StackBase + StackSize, StackSize);
+    Runtime::LogMessage("[Utils] SetStack: [0x%lx:0x%lx], size: 0x%lx", StackBase, StackBase + StackSize, StackSize);
     State.gpr.rsp.qword = StackBase + StackSize;
 }
 
@@ -52,11 +52,68 @@ void InitializeX86AddressSpace(
 
 void* __remill_write_memory_64(void *memory, addr_t addr, uint64_t val) {
     if (addr >= StackBase && addr < StackBase + StackSize) {
-        Runtime::LogMessage("[stack] __remill_write_memory_64: [0x%lx] = 0x%lx", addr, val);
+        Runtime::LogMessage("[Utils] __remill_write_memory_64 stack: [0x%lx] = 0x%lx", addr, val);
         *(uint64_t*)addr = val;
         return memory;
     }
+    Runtime::LogMessage("[Utils] __remill_write_memory_64 write out of stack");
+    exit(1);
     return memory;
+}
+
+// __remill_read_memory_64
+uint64_t __remill_read_memory_64(void *memory, addr_t addr) {
+    if (addr >= StackBase && addr < StackBase + StackSize) {
+        const uint64_t val = *(uint64_t*)addr;
+        Runtime::LogMessage("[Utils] __remill_read_memory_64 stack: 0x%lx = 0x%lx", addr, val);
+        return val;
+    }
+    Runtime::LogMessage("[Utils] __remill_read_memory_64 read out of stack 0x%lx", addr);
+    exit(1);
+    return 0;
+}
+
+// __remill_read_memory_32
+uint32_t __remill_read_memory_32(void *memory, addr_t addr) {
+    if (addr >= StackBase && addr < StackBase + StackSize) {
+        const uint32_t val = *(uint32_t*)addr;
+        Runtime::LogMessage("[Utils] __remill_read_memory_32 stack: 0x%lx = 0x%lx", addr, val);
+        return val;
+    }
+    Runtime::LogMessage("[Utils] __remill_read_memory_32 read out of stack 0x%lx", addr);
+    exit(1);
+    return 0;
+}
+
+// __remill_flag_computation_carry
+bool __remill_flag_computation_carry(bool result, ...) {
+    Runtime::LogMessage("[Utils] __remill_flag_computation_carry: %d", result);
+    return result;
+}
+
+// __remill_flag_computation_zero
+bool __remill_flag_computation_zero(bool result, ...) {
+    Runtime::LogMessage("[Utils] __remill_flag_computation_zero: %d", result);
+    return result;
+}
+
+// __remill_flag_computation_sign
+bool __remill_flag_computation_sign(bool result, ...) {
+    Runtime::LogMessage("[Utils] __remill_flag_computation_sign: %d", result);
+    return result;
+}
+
+// __remill_flag_computation_overflow
+bool __remill_flag_computation_overflow(bool result, ...) {
+    Runtime::LogMessage("[Utils] __remill_flag_computation_overflow: %d", result);
+    return result;
+}
+
+void* __remill_missing_block(void* state, uint64_t pc, void* memory);
+
+void* __remill_jump(void *state, addr_t addr, void* memory) {
+    Runtime::LogMessage("[Utils] __remill_jump: 0x%lx", addr);
+    return __remill_missing_block(state, addr, memory);
 }
 
 } // extern "C"
