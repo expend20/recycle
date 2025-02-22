@@ -1,20 +1,4 @@
-/**
- * RemoveSuffixPass.cpp
- * 
- * This pass handles function name mismatches by removing ".1" suffixes from function names.
- * It does the reverse of RenamePass by:
- * 1. Finding all call instructions that call functions with ".1" suffix
- * 2. If a function without the ".1" suffix exists, redirects the call to that function
- * 3. Removes the function with ".1" suffix from the module
- * 
- * For example:
- * - If there's a call to "sub_1400016d0.1"
- * - And "sub_1400016d0" exists
- * - The call will be redirected to "sub_1400016d0"
- * - And "sub_1400016d0.1" will be removed
- */
-
-#include "RemoveSuffixPass.h"
+#include "RemoveSuffix.h"
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
@@ -22,40 +6,16 @@
 #include <set>
 #include <glog/logging.h>
 
-llvm::PreservedAnalyses FunctionRemoveSuffixPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
-    processCallInstructions(M);
-    return llvm::PreservedAnalyses::none();
-}
+namespace BitcodeTools {
 
-void FunctionRemoveSuffixPass::processCallInstructions(llvm::Module &M) {
-    // First collect all functions with ".1" suffix to avoid modifying while iterating
-    std::vector<llvm::Function*> functionsToProcess;
-    
-    // Iterate through all functions in the module
-    for (auto &F : M) {
-        if (F.isDeclaration()) {
-            continue;  // Skip function declarations
-        }
-        
-        llvm::StringRef Name = F.getName();
-        if (Name.endswith(".1")) {
-            VLOG(1) << "Found function with .1 suffix: " << Name.str();
-            functionsToProcess.push_back(&F);
-        }
-    }
-
-    // Process collected functions
-    for (auto *F : functionsToProcess) {
-        tryRemoveSuffix(M, F);
-    }
-}
-
-bool FunctionRemoveSuffixPass::tryRemoveSuffix(llvm::Module &M, llvm::Function *FunctionWithSuffix) {
+namespace {
+bool tryRemoveSuffix(llvm::Module &M, llvm::Function *FunctionWithSuffix) {
     llvm::StringRef NameWithSuffix = FunctionWithSuffix->getName();
     
     // Get the name without ".1" suffix
     std::string NameWithoutSuffix = NameWithSuffix.substr(0, NameWithSuffix.size() - 2).str();
     VLOG(1) << "Trying to remove suffix from " << NameWithSuffix.str() << " to " << NameWithoutSuffix;
+    
     // Check if the function without suffix exists
     auto *TargetFunction = M.getFunction(NameWithoutSuffix);
     if (!TargetFunction) {
@@ -79,7 +39,6 @@ bool FunctionRemoveSuffixPass::tryRemoveSuffix(llvm::Module &M, llvm::Function *
     // Update all callers to use the function without suffix
     bool HasUsers = false;
     for (const auto &U : FunctionWithSuffix->users()) {
-        //llvm::outs() << "User of " << NameWithSuffix << ": " << U->getName() << "\n";
         if (auto *CallInst = llvm::dyn_cast<llvm::CallInst>(U)) {
             HasUsers = true;
             LOG(INFO) << "Updating caller of " << NameWithSuffix.str() << " to " << NameWithoutSuffix;
@@ -134,4 +93,30 @@ bool FunctionRemoveSuffixPass::tryRemoveSuffix(llvm::Module &M, llvm::Function *
     }
 
     return false;
-} 
+}
+} // anonymous namespace
+
+void RemoveSuffixFromFunctions(llvm::Module &M) {
+    // First collect all functions with ".1" suffix to avoid modifying while iterating
+    std::vector<llvm::Function*> functionsToProcess;
+    
+    // Iterate through all functions in the module
+    for (auto &F : M) {
+        if (F.isDeclaration()) {
+            continue;  // Skip function declarations
+        }
+        
+        llvm::StringRef Name = F.getName();
+        if (Name.endswith(".1")) {
+            VLOG(1) << "Found function with .1 suffix: " << Name.str();
+            functionsToProcess.push_back(&F);
+        }
+    }
+
+    // Process collected functions
+    for (auto *F : functionsToProcess) {
+        tryRemoveSuffix(M, F);
+    }
+}
+
+}  // namespace BitcodeTools 

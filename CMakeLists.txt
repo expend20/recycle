@@ -61,9 +61,9 @@ add_custom_command(
     COMMAND ${CMAKE_CXX_COMPILER} -S -emit-llvm 
             -I${REMILL_INCLUDE_DIRS}
             -I${CMAKE_SOURCE_DIR}/src/include
-            ${CMAKE_SOURCE_DIR}/src/lib/prebuilt/Utils.cpp 
+            ${CMAKE_SOURCE_DIR}/src/lib/Prebuilt/Utils.cpp 
             -o ${CMAKE_BINARY_DIR}/Utils.ll
-    DEPENDS src/lib/prebuilt/Utils.cpp
+    DEPENDS src/lib/Prebuilt/Utils.cpp
     COMMENT "Generating readable LLVM IR from Utils.cpp"
 )
 
@@ -86,10 +86,9 @@ add_executable(recycle
     src/lib/BasicBlockDisassembler.cpp
     src/lib/JITEngine.cpp
     src/lib/JITRuntime.cpp
-    src/lib/bitcode_manipulation/InsertLogging.cpp
-    src/lib/RemoveSuffixPass.cpp
-    src/lib/PassManager.cpp
-    src/lib/RenamePass.cpp
+    src/lib/BitcodeManipulation/InsertLogging.cpp
+    src/lib/BitcodeManipulation/RemoveSuffix.cpp
+    src/lib/BitcodeManipulation/Rename.cpp
     src/lib/MiscUtils.cpp
 )
 

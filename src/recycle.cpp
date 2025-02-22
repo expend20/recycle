@@ -1,9 +1,10 @@
 #include "recycle.h"
 #include "JITEngine.h"
 #include "JITRuntime.h"
-#include "PassManager.h"
 #include "MiscUtils.h"
-#include "bitcode_manipulation/InsertLogging.h"
+#include "BitcodeManipulation/InsertLogging.h"
+#include "BitcodeManipulation/RemoveSuffix.h"
+#include "BitcodeManipulation/Rename.h"
 #include <iostream>
 #include <sstream>
 #include <llvm/Support/raw_ostream.h>
@@ -137,10 +138,9 @@ int main(int argc, char* argv[]) {
             lifted_module = MiscUtils::CloneModule(*saved_module);
         }
 
-        // Apply the logging pass using our wrapper
-        PassManagerWrapper pass_manager;
-        pass_manager.ApplyRenamePass(saved_module.get());
-        pass_manager.ApplyRemoveSuffixPass(saved_module.get());
+        // Apply the transformations
+        BitcodeTools::RenameFunctions(*saved_module);
+        BitcodeTools::RemoveSuffixFromFunctions(*saved_module);
         BitcodeTools::InsertFunctionLogging(*saved_module);
 
         // Add missing block handler with current mappings
