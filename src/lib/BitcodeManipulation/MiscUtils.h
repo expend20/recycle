@@ -2,7 +2,6 @@
 
 #include <string>
 #include <vector>
-#include <utility>
 #include <llvm/IR/Module.h>
 
 namespace MiscUtils {

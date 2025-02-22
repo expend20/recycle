@@ -1,6 +1,7 @@
 #include "JITEngine.h"
 #include "JITRuntime.h"
-#include "MiscUtils.h"
+#include "BitcodeManipulation/MiscUtils.h"
+
 #include <llvm/ExecutionEngine/MCJIT.h>
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/raw_ostream.h>

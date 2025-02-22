@@ -1,5 +1,5 @@
-#include "remill/Arch/X86/Runtime/State.h"
-#include "../../include/JITRuntime.h"
+#include <remill/Arch/X86/Runtime/State.h>
+#include "../JIT/JITRuntime.h"
 
 extern "C" {
 

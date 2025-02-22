@@ -1,10 +1,14 @@
-#include "recycle.h"
-#include "JITEngine.h"
-#include "JITRuntime.h"
-#include "MiscUtils.h"
+#include "JIT/JITEngine.h"
+#include "JIT/JITRuntime.h"
+#include "Minidump/MinidumpContext.h"
+#include "Disasm/BasicBlockDisassembler.h"
+#include "Lift/BasicBlockLifter.h"
+
+#include "BitcodeManipulation/MiscUtils.h"
 #include "BitcodeManipulation/InsertLogging.h"
 #include "BitcodeManipulation/RemoveSuffix.h"
 #include "BitcodeManipulation/Rename.h"
+
 #include <iostream>
 #include <sstream>
 #include <llvm/Support/raw_ostream.h>
@@ -50,7 +54,7 @@ int main(int argc, char* argv[]) {
 
     LOG(INFO) << "Initializing minidump context from file: " << argv[1];
     // Initialize minidump context
-    MinidumpContext context(argv[1]);
+    MinidumpContext::MinidumpContext context(argv[1]);
     if (!context.Initialize()) {
         LOG(ERROR) << "Failed to initialize minidump context";
         return 1;

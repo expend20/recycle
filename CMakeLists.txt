@@ -80,16 +80,16 @@ add_executable(llvm_jit_test src/test/llvm_jit_test.cpp)
 # Add recycle executable
 add_executable(recycle
     src/recycle.cpp
-    src/lib/MinidumpContext.cpp
-    src/lib/XEDDisassembler.cpp
-    src/lib/BasicBlockLifter.cpp
-    src/lib/BasicBlockDisassembler.cpp
-    src/lib/JITEngine.cpp
-    src/lib/JITRuntime.cpp
+    src/lib/Minidump/MinidumpContext.cpp
+    src/lib/Disasm/XEDDisassembler.cpp
+    src/lib/Disasm/BasicBlockDisassembler.cpp
+    src/lib/Lift/BasicBlockLifter.cpp
+    src/lib/JIT/JITEngine.cpp
+    src/lib/JIT/JITRuntime.cpp
     src/lib/BitcodeManipulation/InsertLogging.cpp
     src/lib/BitcodeManipulation/RemoveSuffix.cpp
     src/lib/BitcodeManipulation/Rename.cpp
-    src/lib/MiscUtils.cpp
+    src/lib/BitcodeManipulation/MiscUtils.cpp
 )
 
 # Make recycle depend on the LLVM IR generation

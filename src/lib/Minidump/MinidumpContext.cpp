@@ -1,6 +1,8 @@
-#include "recycle.h"
-#include "third_party/udm_parser/src/lib/udmp-parser.h"
+#include "MinidumpContext.h"
+
 #include <glog/logging.h>
+
+namespace MinidumpContext {
 
 MinidumpContext::MinidumpContext(const std::string& dump_path_)
     : parser(std::make_unique<udmpparser::UserDumpParser>())
@@ -66,3 +68,5 @@ uint64_t MinidumpContext::GetThreadTebAddress() const {
     VLOG(1) << "Found TEB address at 0x" << std::hex << thread.Teb;
     return thread.Teb;
 } 
+
+}  // namespace MinidumpContext
