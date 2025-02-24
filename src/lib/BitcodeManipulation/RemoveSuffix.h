@@ -2,7 +2,7 @@
 
 #include <llvm/IR/Module.h>
 
-namespace BitcodeTools {
+namespace BitcodeManipulation {
 
 /**
  * Removes ".1" suffixes from function names and redirects calls accordingly.
@@ -11,4 +11,4 @@ namespace BitcodeTools {
  */
 void RemoveSuffixFromFunctions(llvm::Module &M);
 
-}  // namespace BitcodeTools 
+}  // namespace BitcodeManipulation 

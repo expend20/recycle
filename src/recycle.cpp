@@ -135,31 +135,31 @@ int main(int argc, char* argv[]) {
 
         // save the module
         if (saved_module == nullptr) {
-            saved_module = MiscUtils::CloneModule(*lifted_module);
+            saved_module = BitcodeManipulation::CloneModule(*lifted_module);
         }
         else {
-            MiscUtils::MergeModules(*saved_module, *lifted_module);
-            lifted_module = MiscUtils::CloneModule(*saved_module);
+            BitcodeManipulation::MergeModules(*saved_module, *lifted_module);
+            lifted_module = BitcodeManipulation::CloneModule(*saved_module);
         }
 
         // Apply the transformations
-        BitcodeTools::RenameFunctions(*saved_module);
-        BitcodeTools::RemoveSuffixFromFunctions(*saved_module);
-        BitcodeTools::InsertFunctionLogging(*saved_module);
+        BitcodeManipulation::RenameFunctions(*saved_module);
+        BitcodeManipulation::RemoveSuffixFromFunctions(*saved_module);
+        BitcodeManipulation::InsertFunctionLogging(*saved_module);
 
         // Add missing block handler with current mappings
-        MiscUtils::AddMissingBlockHandler(*saved_module, addr_to_func_map);
+        BitcodeManipulation::AddMissingBlockHandler(*saved_module, addr_to_func_map);
 
-        MiscUtils::CreateEntryWithState(*saved_module, entry_point, context.GetThreadTebAddress(), entry_point_name);
+        BitcodeManipulation::CreateEntryWithState(*saved_module, entry_point, context.GetThreadTebAddress(), entry_point_name);
 
         // log .ll file
         std::stringstream ss;
         ss << "lifted-" << std::setfill('0') << std::setw(3) << lifted_ips.size() << "-" << std::hex << ip << ".ll";
         const auto filename = ss.str();
-        MiscUtils::DumpModule(*saved_module, filename);
+        BitcodeManipulation::DumpModule(*saved_module, filename);
 
         // Initialize JIT engine with the updated module that includes the missing block handler
-        auto jit_module = MiscUtils::CloneModule(*saved_module);
+        auto jit_module = BitcodeManipulation::CloneModule(*saved_module);
         JITEngine jit;
         if (!jit.Initialize(std::move(jit_module)))
         {
@@ -195,7 +195,8 @@ int main(int argc, char* argv[]) {
         LOG(INFO) << "Total missing blocks atm: " << missing_blocks.size();
 
 
-        if (lifted_ips.size() == 4) {
+        if (lifted_ips.size() == 5) {
+
             break;
         }
 

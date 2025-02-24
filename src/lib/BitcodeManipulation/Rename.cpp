@@ -5,7 +5,7 @@
 #include <llvm/Support/raw_ostream.h>
 #include <glog/logging.h>
 
-namespace BitcodeTools {
+namespace BitcodeManipulation {
 
 namespace {
 bool tryRenameFunction(llvm::Module &M, llvm::StringRef CalledName) {
@@ -81,4 +81,4 @@ void RenameFunctions(llvm::Module &M) {
     }
 }
 
-}  // namespace BitcodeTools 
+}  // namespace BitcodeManipulation 

@@ -2,7 +2,7 @@
 
 #include <llvm/IR/Module.h>
 
-namespace BitcodeTools {
+namespace BitcodeManipulation {
 
 /**
  * Handles function name mismatches that can occur during lifting and linking.
@@ -13,4 +13,4 @@ namespace BitcodeTools {
  */
 void RenameFunctions(llvm::Module &M);
 
-}  // namespace BitcodeTools 
+}  // namespace BitcodeManipulation 

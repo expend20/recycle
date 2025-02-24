@@ -6,7 +6,7 @@
 #include <set>
 #include <glog/logging.h>
 
-namespace BitcodeTools {
+namespace BitcodeManipulation {
 
 namespace {
 bool tryRemoveSuffix(llvm::Module &M, llvm::Function *FunctionWithSuffix) {
@@ -119,4 +119,4 @@ void RemoveSuffixFromFunctions(llvm::Module &M) {
     }
 }
 
-}  // namespace BitcodeTools 
+}  // namespace BitcodeManipulation 

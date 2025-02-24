@@ -4,7 +4,7 @@
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 #include <glog/logging.h>
 
-namespace BitcodeTools {
+namespace BitcodeManipulation {
 
 void InsertFunctionLogging(llvm::Module &M) {
     // First check if logging function already exists
@@ -115,4 +115,4 @@ void InsertFunctionLogging(llvm::Module &M) {
     }
 }
 
-}  // namespace BitcodeTools
+}  // namespace BitcodeManipulation

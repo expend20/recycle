@@ -2,8 +2,8 @@
 
 #include <llvm/IR/Module.h>
 
-namespace BitcodeTools {
+namespace BitcodeManipulation {
 
 void InsertFunctionLogging(llvm::Module &M);
 
-}  // namespace BitcodeTools
+}  // namespace BitcodeManipulation

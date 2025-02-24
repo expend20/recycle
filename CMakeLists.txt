@@ -90,6 +90,7 @@ add_executable(recycle
     src/lib/BitcodeManipulation/RemoveSuffix.cpp
     src/lib/BitcodeManipulation/Rename.cpp
     src/lib/BitcodeManipulation/MiscUtils.cpp
+    src/lib/BitcodeManipulation/AddMissingBlockHandler.cpp
 )
 
 # Make recycle depend on the LLVM IR generation

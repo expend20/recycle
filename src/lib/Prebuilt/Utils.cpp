@@ -61,6 +61,19 @@ void* __remill_write_memory_64(void *memory, addr_t addr, uint64_t val) {
     return memory;
 }
 
+#define MEMORY_CELL_SIZE 1024
+
+typedef struct {
+    uint64_t addr;
+    uint8_t val[MEMORY_CELL_SIZE];
+} MemoryCell64;
+
+MemoryCell64 GlobalMemoryCells64[] = {
+    //{0x3e2060, 0x003e1000},
+    //{0x3e1010, 0x140000000},
+    //{0x14001678f, 0x0161010000016101},
+};
+
 // __remill_read_memory_64
 uint64_t __remill_read_memory_64(void *memory, addr_t addr) {
     if (addr >= StackBase && addr < StackBase + StackSize) {
@@ -68,7 +81,13 @@ uint64_t __remill_read_memory_64(void *memory, addr_t addr) {
         Runtime::LogMessage("[Utils] __remill_read_memory_64 stack: 0x%lx = 0x%lx", addr, val);
         return val;
     }
-    Runtime::LogMessage("[Utils] __remill_read_memory_64 read out of stack 0x%lx", addr);
+    for (const auto &cell : GlobalMemoryCells64) {
+        if (addr == cell.addr) {
+            Runtime::LogMessage("[Utils] __remill_read_memory_64 global: 0x%lx = 0x%lx", addr, *(uint64_t*)cell.val);
+            return *(uint64_t*)cell.val;
+        }
+    }
+    Runtime::LogMessage("[Utils] __remill_read_memory_64 read out of stack and global 0x%lx", addr);
     exit(1);
     return 0;
 }
@@ -80,7 +99,14 @@ uint32_t __remill_read_memory_32(void *memory, addr_t addr) {
         Runtime::LogMessage("[Utils] __remill_read_memory_32 stack: 0x%lx = 0x%lx", addr, val);
         return val;
     }
-    Runtime::LogMessage("[Utils] __remill_read_memory_32 read out of stack 0x%lx", addr);
+    for (const auto &cell : GlobalMemoryCells64) {
+        if (addr == cell.addr) {
+            Runtime::LogMessage("[Utils] __remill_read_memory_32 global: 0x%lx = 0x%lx", addr, *(uint32_t*)cell.val);
+            return *(uint32_t*)cell.val;
+        }
+    }
+
+    Runtime::LogMessage("[Utils] __remill_read_memory_32 read out of stack and global 0x%lx", addr);
     exit(1);
     return 0;
 }
