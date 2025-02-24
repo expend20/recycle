@@ -21,10 +21,29 @@ private:
     static std::unordered_set<uint64_t> ignored_addresses;
 };
 
+class MissingMemoryTracker {
+public:
+    static void AddMissingMemory(uint64_t addr, uint8_t size);
+    static const std::vector<std::pair<uint64_t, uint8_t>>& GetMissingMemory();
+    static void ClearMissingMemory();
+
+private:
+    static std::vector<std::pair<uint64_t, uint8_t>> missing_memory;
+};
+
 // Sample runtime functions that will be linked with lifted code
 extern "C" {
     // Remill intrinsics
-    void* __remill_missing_block_final(void* state, uint64_t pc, void* memory);
+    void* __rt_missing_block(void* state, uint64_t pc, void* memory);
+    uint64_t __rt_read_memory64(void *memory, intptr_t addr);
+    uint32_t __rt_read_memory32(void *memory, intptr_t addr);
+    uint16_t __rt_read_memory16(void *memory, intptr_t addr);
+    uint8_t __rt_read_memory8(void *memory, intptr_t addr);
+    void* __rt_write_memory64(void *memory, intptr_t addr, uint64_t val);
+    void* __rt_write_memory32(void *memory, intptr_t addr, uint32_t val);
+    void* __rt_write_memory16(void *memory, intptr_t addr, uint16_t val);
+    void* __rt_write_memory8(void *memory, intptr_t addr, uint8_t val);
+
     void* __remill_async_hyper_call(void* state, uint64_t pc, void* memory);
     // Variadic logging function
     void LogMessage(const char* format, ...);

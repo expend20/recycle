@@ -3,11 +3,14 @@
 #include "Minidump/MinidumpContext.h"
 #include "Disasm/BasicBlockDisassembler.h"
 #include "Lift/BasicBlockLifter.h"
-
 #include "BitcodeManipulation/MiscUtils.h"
 #include "BitcodeManipulation/InsertLogging.h"
 #include "BitcodeManipulation/RemoveSuffix.h"
 #include "BitcodeManipulation/Rename.h"
+#include "BitcodeManipulation/AddMissingBlockHandler.h"
+#include "BitcodeManipulation/AddMissingMemory.h"
+#include "BitcodeManipulation/AddMissingMemoryHandler.h"
+#include "Prebuilt/Utils.h"
 
 #include <iostream>
 #include <sstream>
@@ -84,77 +87,106 @@ int main(int argc, char* argv[]) {
 
     // clone the module
     std::unique_ptr<llvm::Module> saved_module;
-    std::vector<uint64_t> lifted_ips;
     // Track function names for each lifted block
     std::vector<std::pair<uint64_t, std::string>> addr_to_func_map;
 
-    while (missing_blocks.size() > 0) {
+    std::vector<std::pair<uint64_t, uint64_t>> missing_memory;
+    uint64_t ip = 0;
+    size_t translation_count = 0;
+
+    while (missing_blocks.size() > 0 || missing_memory.size() > 0) {
         LOG(INFO) << std::endl;
 
-        BasicBlockLifter lifter(*llvm_context);
-
-        // pop first block from missing_blocks
-        uint64_t ip = missing_blocks.back();
-        missing_blocks.pop_back();
-        LOG(INFO) << "Lifting block #" << lifted_ips.size() << " at IP: 0x" << std::hex << ip;
-
-        auto memory = context.ReadMemory(ip, 256); // Read enough for a basic block
-        if (memory.empty())
+        if (missing_memory.size() > 0) {
+            LOG(INFO) << "Missing memory: " << missing_memory.size();
+            // read page from the dump
+            const auto page_addr = missing_memory[0].first;
+            const auto page_size = PREBUILT_MEMORY_CELL_SIZE;
+            const auto page = context.ReadMemory(page_addr, page_size);
+            // print hex dump of the page
+            if (!BitcodeManipulation::AddMissingMemory(*saved_module, page_addr, page)) {
+                LOG(ERROR) << "Failed to add missing memory handler";
+                return 1;
+            }
+            missing_memory.clear();
+        }
+        else
         {
-            LOG(ERROR) << "Failed to read memory at IP: 0x" << std::hex << ip;
+            BasicBlockLifter lifter(*llvm_context);
+
+            // pop first block from missing_blocks
+            ip = missing_blocks.back();
+            missing_blocks.pop_back();
+            LOG(INFO) << "Lifting block #" << translation_count << " at IP: 0x" << std::hex << ip;
+
+            auto memory = context.ReadMemory(ip, 256); // Read enough for a basic block
+            if (memory.empty())
+            {
+                LOG(ERROR) << "Failed to read memory at IP: 0x" << std::hex << ip;
+                return 1;
+            }
+
+            // Disassemble the basic block
+            auto instructions = disassembler.DisassembleBlock(memory.data(), memory.size(), ip);
+            if (instructions.empty())
+            {
+                LOG(ERROR) << "No instructions decoded at IP: 0x" << std::hex << ip;
+                return 1;
+            }
+            VLOG(1) << "Successfully disassembled " << instructions.size() << " instructions";
+
+            // Initialize lifter and lift the block
+            if (!lifter.LiftBlock(instructions, ip))
+            {
+                LOG(ERROR) << "Failed to lift basic block at IP: 0x" << std::hex << ip;
+                return 1;
+            }
+            VLOG(1) << "Successfully lifted basic block at IP: 0x" << std::hex << ip;
+
+            // Get the module from lifter
+            auto lifted_module = lifter.TakeModule();
+
+            // Create function name for this block
+            std::stringstream block_ss;
+            block_ss << "sub_" << std::hex << ip;
+            const auto block_func_name = block_ss.str();
+
+            // Add mapping for this block
+            addr_to_func_map.emplace_back(ip, block_func_name);
+
+            // save the module
+            if (saved_module == nullptr)
+            {
+                saved_module = BitcodeManipulation::CloneModule(*lifted_module);
+            }
+            else
+            {
+                BitcodeManipulation::MergeModules(*saved_module, *lifted_module);
+                lifted_module = BitcodeManipulation::CloneModule(*saved_module);
+            }
+
+            // Apply the transformations
+            BitcodeManipulation::RenameFunctions(*saved_module);
+            BitcodeManipulation::RemoveSuffixFromFunctions(*saved_module);
+            BitcodeManipulation::InsertFunctionLogging(*saved_module);
+
+            // Add missing block handler with current mappings
+            BitcodeManipulation::AddMissingBlockHandler(*saved_module, addr_to_func_map);
+            BitcodeManipulation::CreateEntryWithState(
+                *saved_module, entry_point, context.GetThreadTebAddress(), entry_point_name);
+        }
+
+        // Rebuild this function all the time
+        if (BitcodeManipulation::CreateGetSavedMemoryPtr(*saved_module) == nullptr)
+        {
+            LOG(ERROR) << "Failed to create get saved memory ptr";
             return 1;
         }
 
-        // Disassemble the basic block
-        auto instructions = disassembler.DisassembleBlock(memory.data(), memory.size(), ip);
-        if (instructions.empty())
-        {
-            LOG(ERROR) << "No instructions decoded at IP: 0x" << std::hex << ip;
-            return 1;
-        }
-        VLOG(1) << "Successfully disassembled " << instructions.size() << " instructions";
-
-        // Initialize lifter and lift the block
-        if (!lifter.LiftBlock(instructions, ip))
-        {
-            LOG(ERROR) << "Failed to lift basic block at IP: 0x" << std::hex << ip;
-            return 1;
-        }
-        VLOG(1) << "Successfully lifted basic block at IP: 0x" << std::hex << ip;
-
-        // Get the module from lifter
-        auto lifted_module = lifter.TakeModule();
-
-        // Create function name for this block
-        std::stringstream block_ss;
-        block_ss << "sub_" << std::hex << ip;
-        const auto block_func_name = block_ss.str();
-        
-        // Add mapping for this block
-        addr_to_func_map.emplace_back(ip, block_func_name);
-
-        // save the module
-        if (saved_module == nullptr) {
-            saved_module = BitcodeManipulation::CloneModule(*lifted_module);
-        }
-        else {
-            BitcodeManipulation::MergeModules(*saved_module, *lifted_module);
-            lifted_module = BitcodeManipulation::CloneModule(*saved_module);
-        }
-
-        // Apply the transformations
-        BitcodeManipulation::RenameFunctions(*saved_module);
-        BitcodeManipulation::RemoveSuffixFromFunctions(*saved_module);
-        BitcodeManipulation::InsertFunctionLogging(*saved_module);
-
-        // Add missing block handler with current mappings
-        BitcodeManipulation::AddMissingBlockHandler(*saved_module, addr_to_func_map);
-
-        BitcodeManipulation::CreateEntryWithState(*saved_module, entry_point, context.GetThreadTebAddress(), entry_point_name);
 
         // log .ll file
         std::stringstream ss;
-        ss << "lifted-" << std::setfill('0') << std::setw(3) << lifted_ips.size() << "-" << std::hex << ip << ".ll";
+        ss << "lifted-" << std::setfill('0') << std::setw(3) << translation_count << "-" << std::hex << ip << ".ll";
         const auto filename = ss.str();
         BitcodeManipulation::DumpModule(*saved_module, filename);
 
@@ -177,26 +209,42 @@ int main(int argc, char* argv[]) {
         VLOG(1) << "Successfully executed lifted code at IP: 0x" << std::hex << entry_point;
 
 
-        const auto &new_missing_blocks = Runtime::MissingBlockTracker::GetMissingBlocks();
-        // Print all missing blocks encountered during execution
-        LOG(INFO) << "New missing blocks encountered (" << new_missing_blocks.size() << "):\n";
-        for (const auto &pc : new_missing_blocks)
+        // Missing memory should have a priority over missing blocks
+
+        bool missing_memory_found = false;
+        const auto &new_missing_memory = Runtime::MissingMemoryTracker::GetMissingMemory();
+        LOG(INFO) << "New missing memory encountered (" << new_missing_memory.size() << "):\n";
+        for (const auto &mem : new_missing_memory)
         {
-            LOG(INFO) << "  " << std::hex << pc;
-            missing_blocks.push_back(pc);
+            LOG(INFO) << "  " << std::hex << mem.first << ", size: " << mem.second << " bytes";
+            missing_memory_found = true;
         }
-        // merge new_missing_blocks with missing_blocks
-        // add lifted ip to ignored blocks
+        LOG(INFO) << "Taking only first missing memory...";
+        if (new_missing_memory.size() > 0) {
+            missing_memory.push_back(new_missing_memory[0]);
+            // to continue loop repeat current ip
+        }
+        Runtime::MissingMemoryTracker::ClearMissingMemory();
+
+        if (!missing_memory_found) {
+            const auto &new_missing_blocks = Runtime::MissingBlockTracker::GetMissingBlocks();
+            // Print all missing blocks encountered during execution
+            LOG(INFO) << "New missing blocks encountered (" << new_missing_blocks.size() << "):\n";
+            for (const auto &pc : new_missing_blocks)
+            {
+                LOG(INFO) << "  " << std::hex << pc;
+                missing_blocks.push_back(pc);
+            }
+            // merge new_missing_blocks with missing_blocks
+            // add lifted ip to ignored blocks
+        }
         Runtime::MissingBlockTracker::ClearMissingBlocks();
 
-        lifted_ips.push_back(ip);
-
-        LOG(INFO) << "Total lifted ips: " << lifted_ips.size();
         LOG(INFO) << "Total missing blocks atm: " << missing_blocks.size();
+        LOG(INFO) << "Total missing memory atm: " << missing_memory.size();
 
-
-        if (lifted_ips.size() == 5) {
-
+        translation_count++;
+        if (translation_count == 8) {
             break;
         }
 

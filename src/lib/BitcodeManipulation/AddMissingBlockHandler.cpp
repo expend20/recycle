@@ -70,9 +70,9 @@ void AddMissingBlockHandler(llvm::Module& M,
         auto switchInst = builder.CreateSwitch(pc, defaultBB);
         existingSwitch = switchInst;
 
-        // Create the default block with call to __remill_missing_block_final
+        // Create the default block with call to __rt_missing_block
         llvm::IRBuilder<> defaultBuilder(defaultBB);
-        auto finalFunc = M.getOrInsertFunction("__remill_missing_block_final", funcTy);
+        auto finalFunc = M.getOrInsertFunction("__rt_missing_block", funcTy);
         auto call = defaultBuilder.CreateCall(finalFunc, {state, pc, memory});
         defaultBuilder.CreateRet(call);
     }

@@ -1,0 +1,4 @@
+#pragma once
+
+#define PREBUILT_MEMORY_CELL_SIZE 0x1000
+#define PREBUILT_STACK_SIZE 0x100000
