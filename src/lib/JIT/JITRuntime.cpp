@@ -1,4 +1,5 @@
 #include "JITRuntime.h"
+#include "Prebuilt/Utils.h"
 
 #include <unordered_map>
 #include <algorithm>
@@ -126,7 +127,29 @@ void MissingBlockTracker::ClearMissingBlocks() {
 }
 
 void MissingMemoryTracker::AddMissingMemory(uint64_t addr, uint8_t size) {
-    missing_memory.push_back(std::make_pair(addr, size));
+    // Calculate the page-aligned base address
+    uint64_t base_addr = addr & ~(PREBUILT_MEMORY_CELL_SIZE - 1);
+    
+    // Calculate if the access crosses a page boundary
+    uint64_t end_addr = addr + size;
+    uint64_t next_page = base_addr + PREBUILT_MEMORY_CELL_SIZE;
+    
+    // Add the base page
+    if (std::find_if(missing_memory.begin(), missing_memory.end(),
+        [base_addr](const auto& pair) { return pair.first == base_addr; }) == missing_memory.end()) {
+        LOG(INFO) << "JRT: Adding missing memory page at 0x" << std::hex << base_addr;
+        missing_memory.push_back(std::make_pair(base_addr, size));
+    }
+    
+    // If the access crosses into the next page (but not just touching the boundary)
+    if (end_addr > next_page) {
+        uint64_t next_base = next_page;
+        if (std::find_if(missing_memory.begin(), missing_memory.end(),
+            [next_base](const auto& pair) { return pair.first == next_base; }) == missing_memory.end()) {
+            LOG(INFO) << "JRT: Adding adjacent missing memory page at 0x" << std::hex << next_base;
+            missing_memory.push_back(std::make_pair(next_base, size));
+        }
+    }
 }
 
 const std::vector<std::pair<uint64_t, uint8_t>>& MissingMemoryTracker::GetMissingMemory() {

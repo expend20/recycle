@@ -184,6 +184,7 @@ find_package(GTest REQUIRED)
 # Add test executable
 add_executable(unit_tests
     src/test/AddMissingBlockHandlerTest.cpp
+    src/test/MissingMemoryTrackerTest.cpp
 )
 
 # Link test executable with Google Test and other dependencies
