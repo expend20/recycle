@@ -73,13 +73,12 @@ add_custom_target(prebuilt_ir ALL
         ${CMAKE_BINARY_DIR}/Utils.ll
 )
 
-add_executable(remill_test src/test/remill_test.cpp)
-add_executable(minidump_test src/test/minidump_test.cpp)
-add_executable(llvm_jit_test src/test/llvm_jit_test.cpp)
+add_executable(remill_test src/sample/remill_test.cpp)
+add_executable(minidump_test src/sample/minidump_test.cpp)
+add_executable(llvm_jit_test src/sample/llvm_jit_test.cpp)
 
-# Add recycle executable
-add_executable(recycle
-    src/recycle.cpp
+# Create library for core functionality
+add_library(recycle_lib
     src/lib/Minidump/MinidumpContext.cpp
     src/lib/Disasm/XEDDisassembler.cpp
     src/lib/Disasm/BasicBlockDisassembler.cpp
@@ -95,12 +94,37 @@ add_executable(recycle
     src/lib/BitcodeManipulation/AddMissingMemoryHandler.cpp
 )
 
+target_include_directories(recycle_lib PUBLIC
+    ${CMAKE_SOURCE_DIR}/src/include
+    ${CMAKE_SOURCE_DIR}/src/lib
+    ${CMAKE_SOURCE_DIR}
+    ${LLVM_INCLUDE_DIRS}
+    ${REMILL_INCLUDE_DIRS}
+    ${XED_INCLUDE}
+)
+
+# Add binary dir definition to library
+target_compile_definitions(recycle_lib PUBLIC
+    CMAKE_BINARY_DIR="${CMAKE_BINARY_DIR}"
+)
+
+target_link_libraries(recycle_lib PUBLIC
+    remill
+    ${LLVM_LIBRARIES}
+    XED::XED
+)
+
+# Add recycle executable
+add_executable(recycle
+    src/recycle.cpp
+)
+
 # Make recycle depend on the LLVM IR generation
 add_dependencies(recycle prebuilt_ir)
 
-# Pass build directory to code
-target_compile_definitions(recycle PRIVATE
-    CMAKE_BINARY_DIR="${CMAKE_BINARY_DIR}"
+# Update recycle executable to use the library
+target_link_libraries(recycle PRIVATE
+    recycle_lib
 )
 
 # Include directories
@@ -152,4 +176,33 @@ target_link_libraries(llvm_jit_test PRIVATE
 set_target_properties(remill_test minidump_test recycle llvm_jit_test PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
-) 
+)
+
+# Find Google Test
+find_package(GTest REQUIRED)
+
+# Add test executable
+add_executable(unit_tests
+    src/test/AddMissingBlockHandlerTest.cpp
+)
+
+# Link test executable with Google Test and other dependencies
+target_link_libraries(unit_tests PRIVATE
+    GTest::GTest
+    GTest::Main
+    recycle_lib
+    gflags::gflags
+)
+
+target_include_directories(unit_tests PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/include
+    ${CMAKE_SOURCE_DIR}/src/lib
+    ${CMAKE_SOURCE_DIR}
+    ${LLVM_INCLUDE_DIRS}
+    ${REMILL_INCLUDE_DIRS}
+    ${XED_INCLUDE}
+)
+
+# Enable testing
+enable_testing()
+add_test(NAME unit_tests COMMAND unit_tests) 
