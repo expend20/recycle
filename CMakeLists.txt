@@ -185,7 +185,11 @@ find_package(GTest REQUIRED)
 add_executable(unit_tests
     src/test/AddMissingBlockHandlerTest.cpp
     src/test/MissingMemoryTrackerTest.cpp
+    src/test/AddMissingMemoryHandlerTest.cpp
 )
+
+# Make unit tests depend on prebuilt_ir
+add_dependencies(unit_tests prebuilt_ir)
 
 # Link test executable with Google Test and other dependencies
 target_link_libraries(unit_tests PRIVATE

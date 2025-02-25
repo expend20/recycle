@@ -2,6 +2,7 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Constants.h>
 #include <glog/logging.h>
+#include "Prebuilt/Utils.h"
 
 namespace BitcodeManipulation {
 
@@ -86,8 +87,17 @@ llvm::Function* CreateGetSavedMemoryPtr(llvm::Module &M) {
     auto addrPtr = builder.CreateStructGEP(arrayType->getElementType(), cellPtr, 0);
     auto cellAddr = builder.CreateLoad(int64Ty, addrPtr);
 
-    // Check if ptr matches cell address
-    auto matches = builder.CreateICmpEQ(ptr, cellAddr);
+    // Calculate the end address of the cell (cellAddr + PREBUILT_MEMORY_CELL_SIZE)
+    auto cellEndAddr = builder.CreateAdd(cellAddr, 
+        llvm::ConstantInt::get(int64Ty, PREBUILT_MEMORY_CELL_SIZE));
+    
+    // Check if ptr >= cellAddr
+    auto isGreaterEqual = builder.CreateICmpUGE(ptr, cellAddr);
+    // Check if ptr < cellEndAddr
+    auto isLessThan = builder.CreateICmpULT(ptr, cellEndAddr);
+    // Combine both conditions
+    auto matches = builder.CreateAnd(isGreaterEqual, isLessThan);
+
     builder.CreateCondBr(matches, returnFoundBB, continueLoopBB);
 
     // Return found block

@@ -94,14 +94,14 @@ bool JITEngine::Initialize(std::unique_ptr<llvm::Module> module) {
     return true;
 }
 
-bool JITEngine::ExecuteFunction(const std::string& name) {
+bool JITEngine::ExecuteFunction(const std::string& name, uintptr_t* result) {
     if (!ExecutionEngine) {
         LOG(ERROR) << "Execution engine not initialized";
         return false;
     }
 
     // find and call the function
-    typedef void (*FuncType)();
+    typedef uintptr_t (*FuncType)();
     FuncType Func = reinterpret_cast<FuncType>(ExecutionEngine->getFunctionAddress(name));
     if (!Func) {
         LOG(ERROR) << "Failed to find " << name;
@@ -110,6 +110,9 @@ bool JITEngine::ExecuteFunction(const std::string& name) {
 
     // Call the function
     VLOG(1) << "Calling " << name;
-    Func();
+    const uintptr_t ret = Func();
+    if (result) {
+        *result = ret;
+    }
     return true;
 } 
