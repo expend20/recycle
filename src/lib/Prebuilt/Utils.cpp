@@ -23,13 +23,13 @@ T ReadGlobalMemoryEdgeChecked(void *memory, addr_t addr) {
         Runtime::LogMessage("[Utils] ReadGlobalMemoryEdgeChecked: No valid page at 0x%lx, redirecting to runtime", addr);
         
         // Call appropriate runtime read function based on size
-        if constexpr (sizeof(T) == 8) {
+        if (sizeof(T) == 8) {
             return static_cast<T>(Runtime::__rt_read_memory64(memory, addr));
-        } else if constexpr (sizeof(T) == 4) {
+        } else if (sizeof(T) == 4) {
             return static_cast<T>(Runtime::__rt_read_memory32(memory, addr));
-        } else if constexpr (sizeof(T) == 2) {
+        } else if (sizeof(T) == 2) {
             return static_cast<T>(Runtime::__rt_read_memory16(memory, addr));
-        } else if constexpr (sizeof(T) == 1) {
+        } else if (sizeof(T) == 1) {
             return static_cast<T>(Runtime::__rt_read_memory8(memory, addr));
         } else {
             // Fallback for any other size (shouldn't happen with our constraints)
@@ -68,13 +68,13 @@ T ReadGlobalMemoryEdgeChecked(void *memory, addr_t addr) {
         Runtime::LogMessage("[Utils] ReadGlobalMemoryEdgeChecked: Second page not available, redirecting to runtime");
         
         // Call appropriate runtime read function based on size
-        if constexpr (sizeof(T) == 8) {
+        if (sizeof(T) == 8) {
             return static_cast<T>(Runtime::__rt_read_memory64(memory, addr));
-        } else if constexpr (sizeof(T) == 4) {
+        } else if (sizeof(T) == 4) {
             return static_cast<T>(Runtime::__rt_read_memory32(memory, addr));
-        } else if constexpr (sizeof(T) == 2) {
+        } else if (sizeof(T) == 2) {
             return static_cast<T>(Runtime::__rt_read_memory16(memory, addr));
-        } else if constexpr (sizeof(T) == 1) {
+        } else if (sizeof(T) == 1) {
             return static_cast<T>(Runtime::__rt_read_memory8(memory, addr));
         } else {
             // Fallback for any other size (shouldn't happen with our constraints)
@@ -130,7 +130,8 @@ void SetPC(uint64_t pc)
 void SetStack()
 {
     Runtime::LogMessage("[Utils] SetStack: [0x%lx:0x%lx], size: 0x%lx", StackBase, StackBase + StackSize, StackSize);
-    State.gpr.rsp.qword = StackBase + StackSize;
+    State.gpr.rsp.qword = StackBase + StackSize - 8;
+    *((uint64_t*)(StackBase + StackSize) - 8) = 0x1234567890;
 }
 
 void SetGSBase(uint64_t gs)
@@ -156,6 +157,39 @@ void* __remill_write_memory_64(void *memory, addr_t addr, uint64_t val) {
         return memory;
     }
     Runtime::LogMessage("[Utils] __remill_write_memory_64 write out of stack");
+    exit(1);
+    return memory;
+}
+
+void* __remill_write_memory_32(void *memory, addr_t addr, uint32_t val) {
+    if (addr >= StackBase && addr < StackBase + StackSize) {
+        Runtime::LogMessage("[Utils] __remill_write_memory_32 stack: [0x%lx] = 0x%lx", addr, val);
+        *(uint32_t*)addr = val;
+        return memory;
+    }
+    Runtime::LogMessage("[Utils] __remill_write_memory_32 write out of stack addr: 0x%lx, val: 0x%lx", addr, val);
+    exit(1);
+    return memory;
+}
+
+void* __remill_write_memory_16(void *memory, addr_t addr, uint16_t val) {
+    if (addr >= StackBase && addr < StackBase + StackSize) {
+        Runtime::LogMessage("[Utils] __remill_write_memory_16 stack: [0x%lx] = 0x%lx", addr, val);
+        *(uint16_t*)addr = val;
+        return memory;
+    }
+    Runtime::LogMessage("[Utils] __remill_write_memory_16 write out of stack");
+    exit(1);
+    return memory;
+}
+
+void* __remill_write_memory_8(void *memory, addr_t addr, uint8_t val) {
+    if (addr >= StackBase && addr < StackBase + StackSize) {
+        Runtime::LogMessage("[Utils] __remill_write_memory_8 stack: [0x%lx] = 0x%lx", addr, val);
+        *(uint8_t*)addr = val;
+        return memory;
+    }
+    Runtime::LogMessage("[Utils] __remill_write_memory_8 write out of stack");
     exit(1);
     return memory;
 }
@@ -246,6 +280,36 @@ bool __remill_flag_computation_overflow(bool result, ...) {
 void* __remill_jump(void *state, addr_t addr, void* memory) {
     Runtime::LogMessage("[Utils] __remill_jump: 0x%lx", addr);
     return __remill_missing_block(state, addr, memory);
+}
+
+void* __remill_function_return(void *state, addr_t addr, void* memory) {
+    Runtime::LogMessage("[Utils] __remill_function_return: 0x%lx", addr);
+    return __remill_missing_block(state, addr, memory);
+}
+
+uint8_t __remill_undefined_8(void) {
+    Runtime::LogMessage("[Utils] __remill_undefined_8");
+    return 0;
+}
+
+uint16_t __remill_undefined_16(void) {
+    Runtime::LogMessage("[Utils] __remill_undefined_16");
+    return 0;
+}
+
+uint32_t __remill_undefined_32(void) {  
+    Runtime::LogMessage("[Utils] __remill_undefined_32");
+    return 0;
+}
+
+uint64_t __remill_undefined_64(void) {
+    Runtime::LogMessage("[Utils] __remill_undefined_64");
+    return 0;
+}
+
+bool __remill_compare_neq(bool result) {
+    Runtime::LogMessage("[Utils] __remill_compare_neq: %d", result);
+    return result;
 }
 
 } // extern "C"

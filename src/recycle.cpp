@@ -47,7 +47,7 @@ int main(int argc, char* argv[]) {
     FLAGS_colorlogtostderr = true;  // Enable colored output
     google::SetLogDestination(google::INFO, "");  // Disable log file output
     FLAGS_log_prefix = false;
-    FLAGS_v = 0;  // Disable verbose logging
+    FLAGS_v = 1;  // Disable verbose logging
     LOG(INFO) << "Starting program execution";
 
     if (argc != 2) {
@@ -57,8 +57,8 @@ int main(int argc, char* argv[]) {
 
     LOG(INFO) << "Initializing minidump context from file: " << argv[1];
     // Initialize minidump context
-    MinidumpContext::MinidumpContext context(argv[1]);
-    if (!context.Initialize()) {
+    MinidumpContext::MinidumpContext minidump(argv[1]);
+    if (!minidump.Initialize()) {
         LOG(ERROR) << "Failed to initialize minidump context";
         return 1;
     }
@@ -72,11 +72,13 @@ int main(int argc, char* argv[]) {
     std::unique_ptr<llvm::LLVMContext> llvm_context = std::make_unique<llvm::LLVMContext>();
 
     // Add the address of the function to ignore, the end of the trace
-    LOG(INFO) << "Adding ignored address: 0x140001862";
-    Runtime::MissingBlockTracker::AddIgnoredAddress(0x140001862);
+
+    uint64_t stop_addr = 0x140001862;
+    LOG(INFO) << "Adding ignored address: 0x" << std::hex << stop_addr;
+    Runtime::MissingBlockTracker::AddIgnoredAddress(stop_addr);
 
     std::vector<uint64_t> missing_blocks;
-    const auto entry_point = context.GetInstructionPointer();
+    const auto entry_point = minidump.GetInstructionPointer();
     missing_blocks.push_back(entry_point);
     VLOG(1) << "Starting disassembly from instruction pointer: 0x" 
               << std::hex << entry_point;
@@ -90,7 +92,10 @@ int main(int argc, char* argv[]) {
     // Track function names for each lifted block
     std::vector<std::pair<uint64_t, std::string>> addr_to_func_map;
 
-    std::vector<std::pair<uint64_t, uint64_t>> missing_memory;
+    //addr_to_func_map.emplace_back(stop_addr, "sub_140001862");
+
+    std::vector<std::pair<uint64_t, uint8_t>> missing_memory;
+    std::vector<std::pair<uint64_t, uint8_t>> added_memory;
     uint64_t ip = 0;
     size_t translation_count = 0;
 
@@ -102,7 +107,7 @@ int main(int argc, char* argv[]) {
             // read page from the dump
             const auto page_addr = missing_memory[0].first;
             const auto page_size = PREBUILT_MEMORY_CELL_SIZE;
-            const auto page = context.ReadMemory(page_addr, page_size);
+            const auto page = minidump.ReadMemory(page_addr, page_size);
             // print hex dump of the page
             if (!BitcodeManipulation::AddMissingMemory(*saved_module, page_addr, page)) {
                 LOG(ERROR) << "Failed to add missing memory handler";
@@ -119,7 +124,7 @@ int main(int argc, char* argv[]) {
             missing_blocks.pop_back();
             LOG(INFO) << "Lifting block #" << translation_count << " at IP: 0x" << std::hex << ip;
 
-            auto memory = context.ReadMemory(ip, 256); // Read enough for a basic block
+            auto memory = minidump.ReadMemory(ip, 256); // Read enough for a basic block
             if (memory.empty())
             {
                 LOG(ERROR) << "Failed to read memory at IP: 0x" << std::hex << ip;
@@ -173,7 +178,7 @@ int main(int argc, char* argv[]) {
             // Add missing block handler with current mappings
             BitcodeManipulation::AddMissingBlockHandler(*saved_module, addr_to_func_map);
             BitcodeManipulation::CreateEntryWithState(
-                *saved_module, entry_point, context.GetThreadTebAddress(), entry_point_name);
+                *saved_module, entry_point, minidump.GetThreadTebAddress(), entry_point_name);
         }
 
         // Rebuild this function all the time
@@ -198,9 +203,9 @@ int main(int argc, char* argv[]) {
             LOG(ERROR) << "Failed to initialize JIT engine";
             return 1;
         }
-        VLOG(1) << "Successfully initialized JIT engine";
 
         // Execute the lifted code
+        LOG(INFO) << "Executing lifted code at IP: 0x" << std::hex << entry_point;
         if (!jit.ExecuteFunction("entry"))
         {
             LOG(ERROR) << "Failed to execute lifted code at IP: 0x" << std::hex << entry_point;
@@ -219,10 +224,20 @@ int main(int argc, char* argv[]) {
             LOG(INFO) << "  " << std::hex << mem.first << ", size: " << mem.second << " bytes";
             missing_memory_found = true;
         }
-        LOG(INFO) << "Taking only first missing memory...";
-        if (new_missing_memory.size() > 0) {
-            missing_memory.push_back(new_missing_memory[0]);
-            // to continue loop repeat current ip
+        LOG(INFO) << "Taking only first missing memory, if it's not already in missing_memory...";
+        for (const auto &mem : new_missing_memory) {
+            bool found = false;
+            for (const auto& addr : added_memory) {
+                if (addr.first == mem.first) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                LOG(INFO) << "Adding missing memory: " << std::hex << mem.first << ", size: " << mem.second << " bytes";
+                missing_memory.push_back(mem);
+                added_memory.push_back(mem);
+            }
         }
         Runtime::MissingMemoryTracker::ClearMissingMemory();
 
@@ -244,7 +259,7 @@ int main(int argc, char* argv[]) {
         LOG(INFO) << "Total missing memory atm: " << missing_memory.size();
 
         translation_count++;
-        if (translation_count == 8) {
+        if (translation_count == 50) {
             break;
         }
 

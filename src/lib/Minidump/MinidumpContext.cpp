@@ -54,6 +54,7 @@ std::vector<uint8_t> MinidumpContext::ReadMemory(uint64_t address, size_t size) 
     auto memory = parser->ReadMemory(address, size);
     if (!memory) {
         LOG(ERROR) << "Failed to read memory at address: 0x" << std::hex << address;
+        exit(1);
         return {};
     }
     VLOG(1) << "Memory read at address: 0x" << std::hex << address << " size: " << std::dec << memory->size();

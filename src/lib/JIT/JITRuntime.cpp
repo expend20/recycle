@@ -23,66 +23,66 @@ void LogMessage(const char* format, ...) {
     va_start(args, format);
     vsnprintf(buffer, sizeof(buffer), format, args);
     va_end(args);
-    LOG(INFO) << "JRT: " << buffer;
+    VLOG(1) << "JRT: " << buffer;
 }
 
 void* __rt_missing_block(void* state, uint64_t pc, void* memory) {
-    LOG(INFO) << "JRT: Missing block at PC: 0x" << std::hex << pc;
+    VLOG(1) << "JRT: Missing block at PC: 0x" << std::hex << pc;
     MissingBlockTracker::AddMissingBlock(pc);
     return memory;
 }
 
 void* __remill_async_hyper_call(void* state, uint64_t pc, void* memory) {
-    LOG(INFO) << "JRT: Async hyper call at address: 0x" << std::hex << pc;
+    VLOG(1) << "JRT: Async hyper call at address: 0x" << std::hex << pc;
     // TODO: Implement async hyper call
     exit(1);
     return memory;
 }
 
 uint64_t __rt_read_memory64(void *memory, intptr_t addr) {
-    LOG(INFO) << "JRT: Reading memory at address: 0x" << std::hex << addr;
+    VLOG(1) << "JRT: Reading memory at address: 0x" << std::hex << addr;
     MissingMemoryTracker::AddMissingMemory(addr, 8);
     return 0;
 }
 
 void* __rt_write_memory64(void *memory, intptr_t addr, uint64_t val) {
-    LOG(INFO) << "JRT: Writing memory at address: 0x" << std::hex << addr << " with value: 0x" << std::hex << val;
+    VLOG(1) << "JRT: Writing memory at address: 0x" << std::hex << addr << " with value: 0x" << std::hex << val;
     MissingMemoryTracker::AddMissingMemory(addr, 8);
     return memory;
 }
 
 uint32_t __rt_read_memory32(void *memory, intptr_t addr) {
-    LOG(INFO) << "JRT: Reading memory at address: 0x" << std::hex << addr;
+    VLOG(1) << "JRT: Reading memory at address: 0x" << std::hex << addr;
     MissingMemoryTracker::AddMissingMemory(addr, 4);
     return 0;
 }
 
 void* __rt_write_memory32(void *memory, intptr_t addr, uint32_t val) {
-    LOG(INFO) << "JRT: Writing memory at address: 0x" << std::hex << addr << " with value: 0x" << std::hex << val;
+    VLOG(1) << "JRT: Writing memory at address: 0x" << std::hex << addr << " with value: 0x" << std::hex << val;
     MissingMemoryTracker::AddMissingMemory(addr, 4);
     return memory;
 }
 
 uint16_t __rt_read_memory16(void *memory, intptr_t addr) {
-    LOG(INFO) << "JRT: Reading memory at address: 0x" << std::hex << addr;
+    VLOG(1) << "JRT: Reading memory at address: 0x" << std::hex << addr;
     MissingMemoryTracker::AddMissingMemory(addr, 2);
     return 0;
 }
 
 void* __rt_write_memory16(void *memory, intptr_t addr, uint16_t val) {
-    LOG(INFO) << "JRT: Writing memory at address: 0x" << std::hex << addr << " with value: 0x" << std::hex << val;
+    VLOG(1) << "JRT: Writing memory at address: 0x" << std::hex << addr << " with value: 0x" << std::hex << val;
     MissingMemoryTracker::AddMissingMemory(addr, 2);
     return memory;
 }
 
 uint8_t __rt_read_memory8(void *memory, intptr_t addr) {
-    LOG(INFO) << "JRT: Reading memory at address: 0x" << std::hex << addr;
+    VLOG(1) << "JRT: Reading memory at address: 0x" << std::hex << addr;
     MissingMemoryTracker::AddMissingMemory(addr, 1);
     return 0;
 }
 
 void* __rt_write_memory8(void *memory, intptr_t addr, uint8_t val) {
-    LOG(INFO) << "JRT: Writing memory at address: 0x" << std::hex << addr << " with value: 0x" << std::hex << val;
+    VLOG(1) << "JRT: Writing memory at address: 0x" << std::hex << addr << " with value: 0x" << std::hex << val;
     MissingMemoryTracker::AddMissingMemory(addr, 1);
     return memory;
 }
@@ -93,12 +93,12 @@ void MissingBlockTracker::AddMissingBlock(uint64_t pc) {
     if (!IsAddressIgnored(pc)) {
         // Check if block is not already in missing_blocks before adding
         if (std::find(missing_blocks.begin(), missing_blocks.end(), pc) == missing_blocks.end()) {
-            LOG(INFO) << "JRT: Adding missing block at PC: 0x" << std::hex << pc;
+            VLOG(1) << "JRT: Adding missing block at PC: 0x" << std::hex << pc;
             missing_blocks.push_back(pc);
         }
     }
     else {
-        LOG(INFO) << "JRT: Ignoring missing block at PC: 0x" << std::hex << pc;
+        VLOG(1) << "JRT: Ignoring missing block at PC: 0x" << std::hex << pc;
     }
 }
 
@@ -137,7 +137,7 @@ void MissingMemoryTracker::AddMissingMemory(uint64_t addr, uint8_t size) {
     // Add the base page
     if (std::find_if(missing_memory.begin(), missing_memory.end(),
         [base_addr](const auto& pair) { return pair.first == base_addr; }) == missing_memory.end()) {
-        LOG(INFO) << "JRT: Adding missing memory page at 0x" << std::hex << base_addr;
+        LOG(INFO) << "JRT: Adding missing memory page at 0x" << std::hex << base_addr << " reference: " << addr << " size: " << size;
         missing_memory.push_back(std::make_pair(base_addr, size));
     }
     
@@ -146,7 +146,7 @@ void MissingMemoryTracker::AddMissingMemory(uint64_t addr, uint8_t size) {
         uint64_t next_base = next_page;
         if (std::find_if(missing_memory.begin(), missing_memory.end(),
             [next_base](const auto& pair) { return pair.first == next_base; }) == missing_memory.end()) {
-            LOG(INFO) << "JRT: Adding adjacent missing memory page at 0x" << std::hex << next_base;
+            LOG(INFO) << "JRT: Adding adjacent missing memory page at 0x" << std::hex << next_base << " reference: " << addr << " size: " << size;
             missing_memory.push_back(std::make_pair(next_base, size));
         }
     }

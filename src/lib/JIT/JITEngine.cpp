@@ -68,12 +68,13 @@ bool JITEngine::Initialize(std::unique_ptr<llvm::Module> module) {
         {"__rt_missing_block", reinterpret_cast<void*>(Runtime::__rt_missing_block)},
 
         {"__rt_read_memory64", reinterpret_cast<void*>(Runtime::__rt_read_memory64)},
-        {"__rt_write_memory64", reinterpret_cast<void*>(Runtime::__rt_write_memory64)},
         {"__rt_read_memory32", reinterpret_cast<void*>(Runtime::__rt_read_memory32)},
-        {"__rt_write_memory32", reinterpret_cast<void*>(Runtime::__rt_write_memory32)},
         {"__rt_read_memory16", reinterpret_cast<void*>(Runtime::__rt_read_memory16)},
-        {"__rt_write_memory16", reinterpret_cast<void*>(Runtime::__rt_write_memory16)},
         {"__rt_read_memory8", reinterpret_cast<void*>(Runtime::__rt_read_memory8)},
+
+        {"__rt_write_memory64", reinterpret_cast<void*>(Runtime::__rt_write_memory64)},
+        {"__rt_write_memory32", reinterpret_cast<void*>(Runtime::__rt_write_memory32)},
+        {"__rt_write_memory16", reinterpret_cast<void*>(Runtime::__rt_write_memory16)},
         {"__rt_write_memory8", reinterpret_cast<void*>(Runtime::__rt_write_memory8)},
 
         {"__remill_async_hyper_call", reinterpret_cast<void*>(Runtime::__remill_async_hyper_call)},
