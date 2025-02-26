@@ -1,11 +1,106 @@
 #include <remill/Arch/X86/Runtime/State.h>
 #include "../JIT/JITRuntime.h"
 #include "Utils.h"
+#include <string.h>
+#include <type_traits>
 
+// Runtime assistance functions
 extern "C" {
-
 void* __remill_missing_block(void* state, uint64_t pc, void* memory);
 void* __rt_get_saved_memory_ptr(uintptr_t addr);
+}
+
+
+template<typename T>
+T ReadGlobalMemoryEdgeChecked(void *memory, addr_t addr) {
+    static_assert(std::is_integral<T>::value, "T must be an integral type");
+    const size_t size = sizeof(T);
+
+    // Get the memory page for the address
+    void* page = __rt_get_saved_memory_ptr(addr);
+    if (!page) {
+        // No valid page found, redirect to runtime read
+        Runtime::LogMessage("[Utils] ReadGlobalMemoryEdgeChecked: No valid page at 0x%lx, redirecting to runtime", addr);
+        
+        // Call appropriate runtime read function based on size
+        if constexpr (sizeof(T) == 8) {
+            return static_cast<T>(Runtime::__rt_read_memory64(memory, addr));
+        } else if constexpr (sizeof(T) == 4) {
+            return static_cast<T>(Runtime::__rt_read_memory32(memory, addr));
+        } else if constexpr (sizeof(T) == 2) {
+            return static_cast<T>(Runtime::__rt_read_memory16(memory, addr));
+        } else if constexpr (sizeof(T) == 1) {
+            return static_cast<T>(Runtime::__rt_read_memory8(memory, addr));
+        } else {
+            // Fallback for any other size (shouldn't happen with our constraints)
+            Runtime::LogMessage("[Utils] ReadGlobalMemoryEdgeChecked: Unsupported size: %zu", size);
+            return 0;
+        }
+    }
+
+    // Calculate page boundary and check if access crosses it
+    addr_t page_base = (addr / PREBUILT_MEMORY_CELL_SIZE) * PREBUILT_MEMORY_CELL_SIZE;
+    addr_t page_end = page_base + PREBUILT_MEMORY_CELL_SIZE;
+    
+    // If access doesn't cross page boundary, simply dereference and return
+    if (addr + size <= page_end) {
+        // Copy the bytes from memory to result
+        uint8_t* src = (uint8_t*)page + (addr - page_base);
+        T result = *(T*)src;
+        Runtime::LogMessage("[Utils] ReadGlobalMemoryEdgeChecked: Read 0x%lx from addr 0x%lx (size: %zu)", 
+                          (uint64_t)result, addr, size);
+        return result;
+    }
+    
+    // Handle cross-page boundary access
+    Runtime::LogMessage("[Utils] ReadGlobalMemoryEdgeChecked: Access crosses page boundary at 0x%lx, size: %zu", addr, size);
+    
+    // Calculate bytes in first and second page
+    size_t first_page_bytes = page_end - addr;
+    size_t second_page_bytes = size - first_page_bytes;
+    
+    // Get the second page
+    addr_t second_page_addr = page_end;
+    void* second_page = __rt_get_saved_memory_ptr(second_page_addr);
+    
+    if (!second_page) {
+        // Second page is not available, redirect to runtime
+        Runtime::LogMessage("[Utils] ReadGlobalMemoryEdgeChecked: Second page not available, redirecting to runtime");
+        
+        // Call appropriate runtime read function based on size
+        if constexpr (sizeof(T) == 8) {
+            return static_cast<T>(Runtime::__rt_read_memory64(memory, addr));
+        } else if constexpr (sizeof(T) == 4) {
+            return static_cast<T>(Runtime::__rt_read_memory32(memory, addr));
+        } else if constexpr (sizeof(T) == 2) {
+            return static_cast<T>(Runtime::__rt_read_memory16(memory, addr));
+        } else if constexpr (sizeof(T) == 1) {
+            return static_cast<T>(Runtime::__rt_read_memory8(memory, addr));
+        } else {
+            // Fallback for any other size (shouldn't happen with our constraints)
+            Runtime::LogMessage("[Utils] ReadGlobalMemoryEdgeChecked: Unsupported size: %zu", size);
+            return 0;
+        }
+    }
+    
+    // Both pages are valid, read byte by byte and combine
+    T result = 0;
+    
+    // Read bytes from first page
+    uint8_t* first_src = (uint8_t*)page + (addr - page_base);
+    memcpy(&result, first_src, first_page_bytes);
+    
+    // Read bytes from second page
+    uint8_t* second_src = (uint8_t*)second_page;
+    memcpy((uint8_t*)&result + first_page_bytes, second_src, second_page_bytes);
+    
+    Runtime::LogMessage("[Utils] ReadGlobalMemoryEdgeChecked: Cross-boundary read 0x%lx from addr 0x%lx (size: %zu)", 
+                       (uint64_t)result, addr, size);
+    
+    return result;
+}
+
+extern "C" {
 
 uint8_t Stack[PREBUILT_STACK_SIZE];
 const uint64_t StackBase = (uint64_t)Stack;
@@ -77,21 +172,21 @@ extern MemoryCell64 GlobalMemoryCells64[] = {
     //{0x14001678f, 0x0161010000016101},
 };
 
+// For backward compatibility
+uint64_t ReadGlobalMemory64EdgeChecked(void *memory, addr_t addr, size_t size) {
+    return ReadGlobalMemoryEdgeChecked<uint64_t>(memory, addr);
+}
+
 // __remill_read_memory_64
 uint64_t __remill_read_memory_64(void *memory, addr_t addr) {
+
     if (addr >= StackBase && addr < StackBase + StackSize) {
         const uint64_t val = *(uint64_t*)addr;
         Runtime::LogMessage("[Utils] __remill_read_memory_64 stack: 0x%lx = 0x%lx", addr, val);
         return val;
     }
-    Runtime::LogMessage("[Utils] __remill_read_memory_64 checking global memory cells");
-    void* saved_memory = __rt_get_saved_memory_ptr(addr);
-    if (saved_memory) {
-        Runtime::LogMessage("[Utils] __remill_read_memory_64 found saved memory at 0x%lx, value: 0x%lx", addr, *(uint64_t*)saved_memory);
-        return *(uint64_t*)saved_memory;
-    }
-    Runtime::LogMessage("[Utils] __remill_read_memory_64 requesting memory read at 0x%lx", addr);
-    return Runtime::__rt_read_memory64(memory, addr);
+
+    return ReadGlobalMemoryEdgeChecked<uint64_t>(memory, addr);
 }
 
 // __remill_read_memory_32
@@ -101,13 +196,27 @@ uint32_t __remill_read_memory_32(void *memory, addr_t addr) {
         Runtime::LogMessage("[Utils] __remill_read_memory_32 stack: 0x%lx = 0x%lx", addr, val);
         return val;
     }
-    void* saved_memory = __rt_get_saved_memory_ptr(addr);
-    if (saved_memory) {
-        Runtime::LogMessage("[Utils] __remill_read_memory_32 found saved memory at 0x%lx, value: 0x%lx", addr, *(uint32_t*)saved_memory);
-        return *(uint32_t*)saved_memory;
+    return ReadGlobalMemoryEdgeChecked<uint32_t>(memory, addr);
+}
+
+// __remill_read_memory_16
+uint16_t __remill_read_memory_16(void *memory, addr_t addr) {
+    if (addr >= StackBase && addr < StackBase + StackSize) {
+        const uint16_t val = *(uint16_t*)addr;
+        Runtime::LogMessage("[Utils] __remill_read_memory_16 stack: 0x%lx = 0x%lx", addr, val);
+        return val;
     }
-    Runtime::LogMessage("[Utils] __remill_read_memory_32 requesting memory read at 0x%lx", addr);
-    return Runtime::__rt_read_memory32(memory, addr);
+    return ReadGlobalMemoryEdgeChecked<uint16_t>(memory, addr);
+}
+
+// __remill_read_memory_8
+uint8_t __remill_read_memory_8(void *memory, addr_t addr) {
+    if (addr >= StackBase && addr < StackBase + StackSize) {
+        const uint8_t val = *(uint8_t*)addr;
+        Runtime::LogMessage("[Utils] __remill_read_memory_8 stack: 0x%lx = 0x%lx", addr, val);
+        return val;
+    }
+    return ReadGlobalMemoryEdgeChecked<uint8_t>(memory, addr);
 }
 
 // __remill_flag_computation_carry

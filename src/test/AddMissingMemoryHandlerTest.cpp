@@ -189,4 +189,117 @@ TEST_F(AddMissingMemoryHandlerTest, TestMemoryRead32) {
         const auto& missing_memory = Runtime::MissingMemoryTracker::GetMissingMemory();
         ASSERT_EQ(missing_memory.size(), 0);
     }
+}
+
+TEST_F(AddMissingMemoryHandlerTest, TestMemoryReadBoundaryCross32) {
+    // Set address to page boundary - 2, so a 32-bit read will cross pages
+    const uint64_t TEST_ADDR = 0x2000 - 2;
+    
+    // Create test data for first page (ending with 0x1FFF)
+    std::vector<uint8_t> FIRST_PAGE(PREBUILT_MEMORY_CELL_SIZE, 0);
+    // Set the last two bytes of the first page
+    FIRST_PAGE[PREBUILT_MEMORY_CELL_SIZE - 2] = 0x11;
+    FIRST_PAGE[PREBUILT_MEMORY_CELL_SIZE - 1] = 0x22;
+    
+    // Create test data for second page (starting with 0x2000)
+    std::vector<uint8_t> SECOND_PAGE(PREBUILT_MEMORY_CELL_SIZE, 0);
+    // Set the first two bytes of the second page
+    SECOND_PAGE[0] = 0x33;
+    SECOND_PAGE[1] = 0x44;
+    
+    // First iteration - should trigger missing memory for both pages
+    {
+        // Create test function that reads memory at TEST_ADDR
+        auto* TestFunc = CreateTestFunction(TEST_ADDR);
+        ASSERT_NE(TestFunc, nullptr);
+        
+        // Create entry point that sets up state
+        auto* EntryFunc = BitcodeManipulation::CreateEntryWithState(*Module, 0x1000, 0x2000, "test_func");
+        LOG(INFO) << "Entry point created";
+        ASSERT_NE(EntryFunc, nullptr);
+        
+        // Create the memory lookup function
+        auto* GetMemoryPtr = BitcodeManipulation::CreateGetSavedMemoryPtr(*Module);
+        LOG(INFO) << "Memory lookup function created";
+        ASSERT_NE(GetMemoryPtr, nullptr);
+
+        BitcodeManipulation::AddMissingBlockHandler(*Module, {});
+        BitcodeManipulation::InsertFunctionLogging(*Module);
+
+        // dump module
+        BitcodeManipulation::DumpModule(*Module, "test_boundary_cross_1.ll");
+        
+        // Initialize JIT and execute
+        JITEngine jit;
+        ASSERT_TRUE(jit.Initialize(std::move(Module)));
+        LOG(INFO) << "JIT initialized";
+        ASSERT_TRUE(jit.ExecuteFunction("entry"));
+        LOG(INFO) << "Entry function executed";
+        
+        // Verify missing memory was tracked - should have two entries
+        const auto& missing_memory = Runtime::MissingMemoryTracker::GetMissingMemory();
+        ASSERT_EQ(missing_memory.size(), 2);
+        
+        // First page starting address (aligned to PREBUILT_MEMORY_CELL_SIZE)
+        uint64_t first_page_addr = (TEST_ADDR) & ~(PREBUILT_MEMORY_CELL_SIZE - 1);
+        // Second page starting address
+        uint64_t second_page_addr = 0x2000;
+        
+        // Check that both pages were detected as missing
+        bool found_first_page = false;
+        bool found_second_page = false;
+        
+        for (const auto& entry : missing_memory) {
+            if (entry.first == first_page_addr) {
+                found_first_page = true;
+            } else if (entry.first == second_page_addr) {
+                found_second_page = true;
+            }
+        }
+        
+        ASSERT_TRUE(found_first_page) << "First page not detected as missing";
+        ASSERT_TRUE(found_second_page) << "Second page not detected as missing";
+        
+        // Clear for next iteration
+        Runtime::MissingMemoryTracker::ClearMissingMemory();
+    }
+    
+    // Second iteration with mapped memory for both pages
+    {
+        // Create new module and test function
+        Module = std::make_unique<llvm::Module>("test_module_boundary_cross_2", *Context);
+        auto* TestFunc = CreateTestFunction(TEST_ADDR);
+        ASSERT_NE(TestFunc, nullptr);
+        
+        // Create entry point that sets up state
+        auto* EntryFunc = BitcodeManipulation::CreateEntryWithState(*Module, 0x1000, 0x2000, "test_func");
+        ASSERT_NE(EntryFunc, nullptr);
+        
+        // Calculate page addresses
+        uint64_t first_page_addr = (TEST_ADDR) & ~(PREBUILT_MEMORY_CELL_SIZE - 1);
+        uint64_t second_page_addr = 0x2000;
+        
+        // Add both memory pages
+        ASSERT_TRUE(BitcodeManipulation::AddMissingMemory(*Module, first_page_addr, FIRST_PAGE));
+        ASSERT_TRUE(BitcodeManipulation::AddMissingMemory(*Module, second_page_addr, SECOND_PAGE));
+        
+        // Create the memory lookup function
+        auto* GetMemoryPtr = BitcodeManipulation::CreateGetSavedMemoryPtr(*Module);
+        ASSERT_NE(GetMemoryPtr, nullptr);
+        
+        BitcodeManipulation::AddMissingBlockHandler(*Module, {});
+        BitcodeManipulation::InsertFunctionLogging(*Module);
+
+        // dump module
+        BitcodeManipulation::DumpModule(*Module, "test_boundary_cross_2.ll");
+
+        // Initialize JIT and execute
+        JITEngine jit;
+        ASSERT_TRUE(jit.Initialize(std::move(Module)));
+        ASSERT_TRUE(jit.ExecuteFunction("entry"));
+        
+        // Verify no missing memory was tracked
+        const auto& missing_memory = Runtime::MissingMemoryTracker::GetMissingMemory();
+        ASSERT_EQ(missing_memory.size(), 0);
+    }
 } 
