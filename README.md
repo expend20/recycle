@@ -26,3 +26,9 @@ cmake \
     && \
 cmake --build build --config Release
 ```
+
+# Issues to address later
+
+- [ ] Can optimizer explore blocks?
+- [ ] Why is it needed to run optimize twice?
+- [ ] How do I build/test on Github Actions?

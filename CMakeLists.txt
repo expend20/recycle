@@ -112,6 +112,8 @@ add_library(recycle_lib
     src/lib/BitcodeManipulation/AddMissingMemoryHandler.cpp
     src/lib/BitcodeManipulation/MakeSymbolsInternal.cpp
     src/lib/BitcodeManipulation/OptimizeModule.cpp
+    src/lib/BitcodeManipulation/ExtractMissingBlocks.cpp
+    src/lib/BitcodeManipulation/ReplaceMissingBlockCalls.cpp
 )
 
 target_include_directories(recycle_lib PUBLIC

@@ -9,3 +9,5 @@
 #include "BitcodeManipulation/AddMissingMemoryHandler.h"
 #include "BitcodeManipulation/MakeSymbolsInternal.h"
 #include "BitcodeManipulation/OptimizeModule.h"
+#include "BitcodeManipulation/ExtractMissingBlocks.h"
+#include "BitcodeManipulation/ReplaceMissingBlockCalls.h"

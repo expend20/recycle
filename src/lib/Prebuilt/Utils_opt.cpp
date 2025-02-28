@@ -208,9 +208,6 @@ typedef struct {
 
 extern MemoryCell64 GlobalMemoryCells64[] = {
     {0x1234567890, {0}},
-    //{0x3e2060, 0x003e1000},
-    //{0x3e1010, 0x140000000},
-    //{0x14001678f, 0x0161010000016101},
 };
 
 // For backward compatibility

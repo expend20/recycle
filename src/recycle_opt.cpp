@@ -176,93 +176,62 @@ int main(int argc, char* argv[]) {
         }
 
         // Rebuild this function all the time
-        if (BitcodeManipulation::CreateGetSavedMemoryPtr(*saved_module) == nullptr)
-        {
-            LOG(ERROR) << "Failed to create get saved memory ptr";
-            return 1;
-        }
+        BitcodeManipulation::CreateGetSavedMemoryPtr(*saved_module); // return nullptr is fine: optimized could remove GlobalMemoryCells64
 
+        BitcodeManipulation::ReplaceMissingBlockCalls(*saved_module);
 
         // log .ll file
         std::stringstream ss;
         ss << "lifted-" << std::setfill('0') << std::setw(3) << translation_count << "-" << std::hex << ip << ".ll";
         const auto filename = ss.str();
         BitcodeManipulation::DumpModule(*saved_module, filename);
+
+        // Optimize the module
         BitcodeManipulation::RemoveOptNoneAttribute(*saved_module, {"entry"});
         BitcodeManipulation::MakeSymbolsInternal(*saved_module, {"entry"});
         BitcodeManipulation::MakeFunctionsInline(*saved_module, {"entry"});
-        BitcodeManipulation::DumpModule(*saved_module, filename + "_inline_internal.ll");
+        BitcodeManipulation::DumpModule(*saved_module, filename + "_pre_opt.ll");
         BitcodeManipulation::OptimizeModule(*saved_module, 3);
-        BitcodeManipulation::DumpModule(*saved_module, filename + "_optimized.ll");
-        BitcodeManipulation::OptimizeModule(*saved_module, 3);
+        BitcodeManipulation::OptimizeModule(*saved_module, 3); // Calling optimize module twice is intentional
         BitcodeManipulation::DumpModule(*saved_module, filename + "_optimized_3.ll");
-        exit(0);
 
-        // Initialize JIT engine with the updated module that includes the missing block handler
-        auto jit_module = BitcodeManipulation::CloneModule(*saved_module);
-        JITEngine jit;
-        if (!jit.Initialize(std::move(jit_module)))
-        {
-            LOG(ERROR) << "Failed to initialize JIT engine";
-            return 1;
-        }
-
-        // Execute the lifted code
-        LOG(INFO) << "Executing lifted code at IP: 0x" << std::hex << entry_point;
-        if (!jit.ExecuteFunction("entry"))
-        {
-            LOG(ERROR) << "Failed to execute lifted code at IP: 0x" << std::hex << entry_point;
-            return 1;
-        }
-        VLOG(1) << "Successfully executed lifted code at IP: 0x" << std::hex << entry_point;
-
-
-        // Missing memory should have a priority over missing blocks
-
-        bool missing_memory_found = false;
-        const auto &new_missing_memory = Runtime::MissingMemoryTracker::GetMissingMemory();
-        LOG(INFO) << "New missing memory encountered (" << new_missing_memory.size() << "):\n";
-        for (const auto &mem : new_missing_memory)
-        {
-            LOG(INFO) << "  " << std::hex << mem.first << ", size: " << mem.second << " bytes";
-            missing_memory_found = true;
-        }
-        LOG(INFO) << "Taking only first missing memory, if it's not already in missing_memory...";
-        for (const auto &mem : new_missing_memory) {
-            bool found = false;
-            for (const auto& addr : added_memory) {
-                if (addr.first == mem.first) {
-                    found = true;
+        // Extract missing blocks and memory references
+        auto new_missing_blocks = BitcodeManipulation::ExtractMissingBlocks(*saved_module);
+        
+        // Print the extracted blocks for debugging
+        BitcodeManipulation::PrintMissingBlocks(new_missing_blocks);
+        
+        // Add the newly found missing blocks to our queue, if they're not already in our ignored list
+        for (const auto& addr : new_missing_blocks) {
+            // Check if this address is already in our ignored list
+            if (Runtime::MissingBlockTracker::IsAddressIgnored(addr)) {
+                VLOG(1) << "Ignoring already processed or explicitly ignored address: 0x" 
+                      << std::hex << addr;
+                continue;
+            }
+            
+            // Check if we already have this block in our queue
+            bool already_in_queue = false;
+            for (const auto& queued_addr : missing_blocks) {
+                if (queued_addr == addr) {
+                    already_in_queue = true;
                     break;
                 }
             }
-            if (!found) {
-                LOG(INFO) << "Adding missing memory: " << std::hex << mem.first << ", size: " << mem.second << " bytes";
-                missing_memory.push_back(mem);
-                added_memory.push_back(mem);
+            
+            if (!already_in_queue) {
+                LOG(INFO) << "Adding new missing block to queue: 0x" << std::hex << addr;
+                missing_blocks.push_back(addr);
             }
         }
-        Runtime::MissingMemoryTracker::ClearMissingMemory();
 
-        if (!missing_memory_found) {
-            const auto &new_missing_blocks = Runtime::MissingBlockTracker::GetMissingBlocks();
-            // Print all missing blocks encountered during execution
-            LOG(INFO) << "New missing blocks encountered (" << new_missing_blocks.size() << "):\n";
-            for (const auto &pc : new_missing_blocks)
-            {
-                LOG(INFO) << "  " << std::hex << pc;
-                missing_blocks.push_back(pc);
-            }
-            // merge new_missing_blocks with missing_blocks
-            // add lifted ip to ignored blocks
-        }
-        Runtime::MissingBlockTracker::ClearMissingBlocks();
+        // Missing memory should have a priority over missing blocks
 
         LOG(INFO) << "Total missing blocks atm: " << missing_blocks.size();
         LOG(INFO) << "Total missing memory atm: " << missing_memory.size();
 
         translation_count++;
-        if (translation_count == 50) {
+        if (translation_count == 3) {
             break;
         }
 

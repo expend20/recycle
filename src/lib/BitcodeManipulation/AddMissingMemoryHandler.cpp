@@ -9,6 +9,14 @@ namespace BitcodeManipulation {
 llvm::Function* CreateGetSavedMemoryPtr(llvm::Module &M) {
     auto& context = M.getContext();
 
+    // Find the GlobalMemoryCells64 global variable
+    auto* globalCells = M.getGlobalVariable("GlobalMemoryCells64");
+    if (!globalCells) {
+        // If no global cells exist, always return 0
+        LOG(ERROR) << "GlobalMemoryCells64 not found";
+        return nullptr;
+    }
+
     // Create function type: uintptr_t (uintptr_t)
     auto int64Ty = llvm::Type::getInt64Ty(context);
     auto funcTy = llvm::FunctionType::get(int64Ty, {int64Ty}, false);
@@ -44,15 +52,6 @@ llvm::Function* CreateGetSavedMemoryPtr(llvm::Module &M) {
     // Get function argument (ptr)
     auto ptr = newFunc->arg_begin();
     ptr->setName("ptr");
-
-    // Find the GlobalMemoryCells64 global variable
-    auto* globalCells = M.getGlobalVariable("GlobalMemoryCells64");
-    if (!globalCells) {
-        // If no global cells exist, always return 0
-        builder.CreateRet(llvm::ConstantInt::get(int64Ty, 0));
-        LOG(ERROR) << "GlobalMemoryCells64 not found";
-        return nullptr;
-    }
 
     // Get array size from global variable type
     auto* arrayType = llvm::cast<llvm::ArrayType>(globalCells->getValueType());
