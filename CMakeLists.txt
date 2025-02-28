@@ -73,6 +73,24 @@ add_custom_target(prebuilt_ir ALL
         ${CMAKE_BINARY_DIR}/Utils.ll
 )
 
+# Custom commands to generate LLVM IR in readable format
+add_custom_command(
+    OUTPUT ${CMAKE_BINARY_DIR}/Utils_opt.ll
+    COMMAND ${CMAKE_CXX_COMPILER} -S -emit-llvm 
+            -I${REMILL_INCLUDE_DIRS}
+            -I${CMAKE_SOURCE_DIR}/src/include
+            ${CMAKE_SOURCE_DIR}/src/lib/Prebuilt/Utils_opt.cpp 
+            -o ${CMAKE_BINARY_DIR}/Utils_opt.ll
+    DEPENDS src/lib/Prebuilt/Utils_opt.cpp
+    COMMENT "Generating readable LLVM IR from Utils_opt.cpp"
+)
+
+# Custom target for the LLVM IR files
+add_custom_target(prebuilt_ir_opt ALL
+    DEPENDS 
+        ${CMAKE_BINARY_DIR}/Utils_opt.ll
+)
+
 add_executable(remill_test src/sample/remill_test.cpp)
 add_executable(minidump_test src/sample/minidump_test.cpp)
 add_executable(llvm_jit_test src/sample/llvm_jit_test.cpp)
@@ -92,6 +110,8 @@ add_library(recycle_lib
     src/lib/BitcodeManipulation/AddMissingBlockHandler.cpp
     src/lib/BitcodeManipulation/AddMissingMemory.cpp
     src/lib/BitcodeManipulation/AddMissingMemoryHandler.cpp
+    src/lib/BitcodeManipulation/MakeSymbolsInternal.cpp
+    src/lib/BitcodeManipulation/OptimizeModule.cpp
 )
 
 target_include_directories(recycle_lib PUBLIC
@@ -119,11 +139,20 @@ add_executable(recycle
     src/recycle.cpp
 )
 
+add_executable(recycle_opt
+    src/recycle_opt.cpp
+)
+
 # Make recycle depend on the LLVM IR generation
 add_dependencies(recycle prebuilt_ir)
+add_dependencies(recycle_opt prebuilt_ir_opt)
 
 # Update recycle executable to use the library
 target_link_libraries(recycle PRIVATE
+    recycle_lib
+)
+
+target_link_libraries(recycle_opt PRIVATE
     recycle_lib
 )
 

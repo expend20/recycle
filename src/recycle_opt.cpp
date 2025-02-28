@@ -172,7 +172,7 @@ int main(int argc, char* argv[]) {
             // Add missing block handler with current mappings
             BitcodeManipulation::AddMissingBlockHandler(*saved_module, addr_to_func_map);
             BitcodeManipulation::CreateEntryWithState(
-                *saved_module, entry_point, minidump.GetThreadTebAddress(), entry_point_name, "Utils.ll");
+                *saved_module, entry_point, minidump.GetThreadTebAddress(), entry_point_name, "Utils_opt.ll");
         }
 
         // Rebuild this function all the time
@@ -188,6 +188,15 @@ int main(int argc, char* argv[]) {
         ss << "lifted-" << std::setfill('0') << std::setw(3) << translation_count << "-" << std::hex << ip << ".ll";
         const auto filename = ss.str();
         BitcodeManipulation::DumpModule(*saved_module, filename);
+        BitcodeManipulation::RemoveOptNoneAttribute(*saved_module, {"entry"});
+        BitcodeManipulation::MakeSymbolsInternal(*saved_module, {"entry"});
+        BitcodeManipulation::MakeFunctionsInline(*saved_module, {"entry"});
+        BitcodeManipulation::DumpModule(*saved_module, filename + "_inline_internal.ll");
+        BitcodeManipulation::OptimizeModule(*saved_module, 3);
+        BitcodeManipulation::DumpModule(*saved_module, filename + "_optimized.ll");
+        BitcodeManipulation::OptimizeModule(*saved_module, 3);
+        BitcodeManipulation::DumpModule(*saved_module, filename + "_optimized_3.ll");
+        exit(0);
 
         // Initialize JIT engine with the updated module that includes the missing block handler
         auto jit_module = BitcodeManipulation::CloneModule(*saved_module);

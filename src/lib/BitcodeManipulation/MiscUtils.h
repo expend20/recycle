@@ -11,6 +11,7 @@ void MergeModules(llvm::Module& M1, const llvm::Module& M2);
 void DumpModule(const llvm::Module& M, const std::string& filename);
 
 // TODO: move to standalone function
-llvm::Function* CreateEntryWithState(llvm::Module& M, uint64_t PC, uint64_t GSBase, const std::string& TargetFuncName);
+llvm::Function* CreateEntryWithState(
+    llvm::Module& M, uint64_t PC, uint64_t GSBase, const std::string& TargetFuncName, const std::string& llFile);
 
 } // namespace BitcodeManipulation 

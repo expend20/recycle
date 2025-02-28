@@ -54,7 +54,9 @@ void DumpModule(const llvm::Module& M, const std::string& filename) {
     LOG(INFO) << "LLVM IR written to " << filename;
 }
 
-llvm::Function* CreateEntryWithState(llvm::Module& M, uint64_t PC, uint64_t GSBase, const std::string& TargetFuncName) {
+llvm::Function* CreateEntryWithState(
+    llvm::Module& M, uint64_t PC, uint64_t GSBase, const std::string& TargetFuncName, const std::string& llFile)
+{
     auto& context = M.getContext();
 
     // check if we need to merge modules (if not merged yet)
@@ -65,7 +67,7 @@ llvm::Function* CreateEntryWithState(llvm::Module& M, uint64_t PC, uint64_t GSBa
 
     // Read and merge the prebuilt bitcode modules
     llvm::SMDiagnostic Err;
-    std::string utils_path = std::string(CMAKE_BINARY_DIR) + "/Utils.ll";
+    std::string utils_path = std::string(CMAKE_BINARY_DIR) + "/" + llFile;
     LOG(INFO) << "Attempting to load Utils.ll from: " << utils_path;
 
     auto utils_module = llvm::parseIRFile(

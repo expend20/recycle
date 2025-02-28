@@ -135,9 +135,10 @@ void SetPC(uint64_t pc)
 
 void SetStack()
 {
-    LOG_MESSAGE("[Utils] SetStack: [0x%lx:0x%lx], size: 0x%lx", StackBase, StackBase + StackSize, StackSize);
-    State.gpr.rsp.qword = StackBase + StackSize - 8;
-    *((uint64_t*)(StackBase + StackSize) - 8) = 0x1234567890;
+    //LOG_MESSAGE("[Utils] SetStack: [0x%lx:0x%lx], size: 0x%lx", StackBase, StackBase + StackSize, StackSize);
+    //State.gpr.rsp.qword = StackBase + StackSize - 8;
+    //*((uint64_t*)(StackBase + StackSize) - 8) = 0x1234567890;
+    State.gpr.rsp.qword = StackBase;
 }
 
 void SetGSBase(uint64_t gs)
@@ -157,14 +158,14 @@ void InitializeX86AddressSpace(
 }
 
 void* __remill_write_memory_64(void *memory, addr_t addr, uint64_t val) {
-    if (addr >= StackBase && addr < StackBase + StackSize) {
+    //if (addr >= StackBase && addr < StackBase + StackSize) {
         LOG_MESSAGE("[Utils] __remill_write_memory_64 stack: [0x%lx] = 0x%lx", addr, val);
         *(uint64_t*)addr = val;
         return memory;
-    }
-    LOG_MESSAGE("[Utils] __remill_write_memory_64 write out of stack");
-    exit(1);
-    return memory;
+    //}
+    //LOG_MESSAGE("[Utils] __remill_write_memory_64 write out of stack");
+    //exit(1);
+    //return memory;
 }
 
 void* __remill_write_memory_32(void *memory, addr_t addr, uint32_t val) {
