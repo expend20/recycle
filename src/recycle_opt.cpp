@@ -14,7 +14,6 @@
 #include <llvm/Passes/PassBuilder.h>
 #include <glog/logging.h>
 
-// jit
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/IRBuilder.h>
@@ -25,6 +24,8 @@
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Support/Host.h>
+#include <llvm/Transforms/Utils/Cloning.h>
+
 #include "remill/Arch/X86/Runtime/State.h"
 
 using namespace llvm;
@@ -41,7 +42,7 @@ int main(int argc, char* argv[]) {
     FLAGS_colorlogtostderr = true;  // Enable colored output
     google::SetLogDestination(google::INFO, "");  // Disable log file output
     FLAGS_log_prefix = false;
-    FLAGS_v = 1;  // Disable verbose logging
+    FLAGS_v = 0;  // Disable verbose logging
     LOG(INFO) << "Starting program execution";
 
     if (argc != 2) {
@@ -82,7 +83,7 @@ int main(int argc, char* argv[]) {
     const auto entry_point_name = ss.str();
 
     // clone the module
-    std::unique_ptr<llvm::Module> saved_module;
+    std::unique_ptr<llvm::Module> opt_module;
     // Track function names for each lifted block
     std::vector<std::pair<uint64_t, std::string>> addr_to_func_map;
 
@@ -90,6 +91,7 @@ int main(int argc, char* argv[]) {
 
     std::vector<std::pair<uint64_t, uint8_t>> missing_memory;
     std::vector<std::pair<uint64_t, uint8_t>> added_memory;
+    std::vector<std::unique_ptr<llvm::Module>> lifted_modules;
     uint64_t ip = 0;
     size_t translation_count = 0;
 
@@ -103,7 +105,7 @@ int main(int argc, char* argv[]) {
             const auto page_size = PREBUILT_MEMORY_CELL_SIZE;
             const auto page = minidump.ReadMemory(page_addr, page_size);
             // print hex dump of the page
-            if (!BitcodeManipulation::AddMissingMemory(*saved_module, page_addr, page)) {
+            if (!BitcodeManipulation::AddMissingMemory(*opt_module, page_addr, page)) {
                 LOG(ERROR) << "Failed to add missing memory handler";
                 return 1;
             }
@@ -153,50 +155,56 @@ int main(int argc, char* argv[]) {
             // Add mapping for this block
             addr_to_func_map.emplace_back(ip, block_func_name);
 
-            // save the module
-            if (saved_module == nullptr)
+            opt_module = llvm::CloneModule(*lifted_module);
+            // merge with the last lifted module
+            for (const auto &module : lifted_modules)
             {
-                saved_module = BitcodeManipulation::CloneModule(*lifted_module);
+                BitcodeManipulation::MergeModules(*opt_module, *module);
             }
-            else
-            {
-                BitcodeManipulation::MergeModules(*saved_module, *lifted_module);
-                lifted_module = BitcodeManipulation::CloneModule(*saved_module);
-            }
+            lifted_modules.push_back(std::move(lifted_module));
 
             // Apply the transformations
-            BitcodeManipulation::RenameFunctions(*saved_module);
-            BitcodeManipulation::RemoveSuffixFromFunctions(*saved_module);
+            BitcodeManipulation::RenameFunctions(*opt_module);
+            BitcodeManipulation::RemoveSuffixFromFunctions(*opt_module);
             //BitcodeManipulation::InsertFunctionLogging(*saved_module);
 
             // Add missing block handler with current mappings
-            BitcodeManipulation::AddMissingBlockHandler(*saved_module, addr_to_func_map);
-            BitcodeManipulation::CreateEntryWithState(
-                *saved_module, entry_point, minidump.GetThreadTebAddress(), entry_point_name, "Utils_opt.ll");
+            BitcodeManipulation::AddMissingBlockHandler(*opt_module, addr_to_func_map);
+            const auto utils_module = BitcodeManipulation::ReadBitcodeFile("build/Utils_opt.ll", *llvm_context);
+            if (!utils_module) {
+                LOG(ERROR) << "Failed to load Utils.ll module";
+                return 1;
+            }
+            BitcodeManipulation::MergeModules(*opt_module, *utils_module);
+            BitcodeManipulation::CreateEntryFunction(
+                *opt_module, entry_point, minidump.GetThreadTebAddress(), entry_point_name);
         }
 
         // Rebuild this function all the time
-        BitcodeManipulation::CreateGetSavedMemoryPtr(*saved_module); // return nullptr is fine: optimized could remove GlobalMemoryCells64
+        BitcodeManipulation::CreateGetSavedMemoryPtr(*opt_module); // return nullptr is fine: optimized could remove GlobalMemoryCells64
 
-        BitcodeManipulation::ReplaceMissingBlockCalls(*saved_module);
+        BitcodeManipulation::ReplaceMissingBlockCalls(*opt_module);
 
         // log .ll file
         std::stringstream ss;
         ss << "lifted-" << std::setfill('0') << std::setw(3) << translation_count << "-" << std::hex << ip << ".ll";
         const auto filename = ss.str();
-        BitcodeManipulation::DumpModule(*saved_module, filename);
+        BitcodeManipulation::DumpModule(*opt_module, filename);
 
         // Optimize the module
-        BitcodeManipulation::RemoveOptNoneAttribute(*saved_module, {"entry"});
-        BitcodeManipulation::MakeSymbolsInternal(*saved_module, {"entry"});
-        BitcodeManipulation::MakeFunctionsInline(*saved_module, {"entry"});
-        BitcodeManipulation::DumpModule(*saved_module, filename + "_pre_opt.ll");
-        BitcodeManipulation::OptimizeModule(*saved_module, 3);
-        BitcodeManipulation::OptimizeModule(*saved_module, 3); // Calling optimize module twice is intentional
-        BitcodeManipulation::DumpModule(*saved_module, filename + "_optimized_3.ll");
+        const auto exclustion = std::vector<std::string>{"entry"};
+
+        BitcodeManipulation::RemoveOptNoneAttribute(*opt_module, exclustion);
+        BitcodeManipulation::MakeSymbolsInternal(*opt_module, exclustion);
+        BitcodeManipulation::MakeFunctionsInline(*opt_module, exclustion);
+        BitcodeManipulation::DumpModule(*opt_module, filename + "_pre_opt.ll");
+        BitcodeManipulation::InlineFunctionsInModule(*opt_module, "");
+        BitcodeManipulation::OptimizeModule(*opt_module, 3);
+        BitcodeManipulation::OptimizeModule(*opt_module, 3); // Calling optimize module twice is intentional
+        BitcodeManipulation::DumpModule(*opt_module, filename + "_optimized_3.ll");
 
         // Extract missing blocks and memory references
-        auto new_missing_blocks = BitcodeManipulation::ExtractMissingBlocks(*saved_module);
+        auto new_missing_blocks = BitcodeManipulation::ExtractMissingBlocks(*opt_module);
         
         // Print the extracted blocks for debugging
         BitcodeManipulation::PrintMissingBlocks(new_missing_blocks);
@@ -231,7 +239,7 @@ int main(int argc, char* argv[]) {
         LOG(INFO) << "Total missing memory atm: " << missing_memory.size();
 
         translation_count++;
-        if (translation_count == 3) {
+        if (translation_count == 4) {
             break;
         }
 

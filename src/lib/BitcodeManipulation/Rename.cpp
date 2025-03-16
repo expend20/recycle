@@ -81,4 +81,16 @@ void RenameFunctions(llvm::Module &M) {
     }
 }
 
+void RenameFunction(llvm::Module &M, llvm::StringRef OldName, llvm::StringRef NewName)
+{
+    auto *OldF = M.getFunction(OldName);
+    if (!OldF) {
+        LOG(ERROR) << "Function " << OldName.str() << " not found";
+        return;
+    }
+    
+    // set name to new name
+    OldF->setName(NewName);
+}
+
 }  // namespace BitcodeManipulation 

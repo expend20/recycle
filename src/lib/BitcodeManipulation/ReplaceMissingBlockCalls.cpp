@@ -12,15 +12,16 @@
 
 namespace BitcodeManipulation {
 
-uint64_t ReplaceMissingBlockCalls(llvm::Module& M) {
+uint64_t ReplaceMissingBlockCalls(llvm::Module& M, 
+                                  const std::string& missingBlockFuncName) {
     VLOG(1) << "Replacing missing block calls in module: " << M.getName().str();
     
     // Get the function declaration for __rt_missing_block
-    llvm::Function* missingBlockFunc = M.getFunction("__rt_missing_block");
+    llvm::Function* missingBlockFunc = M.getFunction(missingBlockFuncName);
     
     // If the function doesn't exist in the module, return 0
     if (!missingBlockFunc) {
-        VLOG(1) << "No __rt_missing_block function found in module";
+        VLOG(1) << "No " << missingBlockFuncName << " function found in module";
         return 0;
     }
     
@@ -33,6 +34,7 @@ uint64_t ReplaceMissingBlockCalls(llvm::Module& M) {
         if (&F == missingBlockFunc) {
             continue;
         }
+
         
         // First, collect all calls to __rt_missing_block
         for (auto& BB : F) {
@@ -45,6 +47,8 @@ uint64_t ReplaceMissingBlockCalls(llvm::Module& M) {
             }
         }
     }
+
+    VLOG(1) << "Found " << callsToReplace.size() << " calls to " << missingBlockFuncName;
     
     // Process collected calls for replacement
     for (auto* callInst : callsToReplace) {
@@ -59,9 +63,10 @@ uint64_t ReplaceMissingBlockCalls(llvm::Module& M) {
                 ss << "sub_" << std::hex << destAddr;
                 std::string funcName = ss.str();
                 
+                VLOG(1) << "Replacing call to " << missingBlockFuncName << " with " << funcName << "...";
                 // Look for a function with this name in the module
                 if (llvm::Function* targetFunc = M.getFunction(funcName)) {
-                    VLOG(2) << "Replacing call to __rt_missing_block with " << funcName 
+                    VLOG(1) << "Replacing call to " << missingBlockFuncName << " with " << funcName 
                              << " at address 0x" << std::hex << destAddr;
                     
                     // Create a new call instruction to the target function
@@ -88,7 +93,7 @@ uint64_t ReplaceMissingBlockCalls(llvm::Module& M) {
                     
                     replacedCalls++;
                 } else {
-                    VLOG(2) << "No function found for name " << funcName 
+                    VLOG(1) << "No function found for name " << funcName 
                              << " at address 0x" << std::hex << destAddr;
                 }
             }

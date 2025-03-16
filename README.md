@@ -27,8 +27,31 @@ cmake \
 cmake --build build --config Release
 ```
 
-# Issues to address later
+# Thoughts
 
-- [ ] Can optimizer explore blocks?
+- [x] Can optimizer explore blocks?
+    - If you optimize something early and lift something which is actually using that later (e.g. stack write), it's a problem (upd: not really because of stack could be external variable for some period or you can disable some optimizations e.g. DSE)
+    - If you've inlined a basic block (function) and there is a jump on it again, it's nowhere to jump (upd: keep lifted ones and merge each time?)
+- [ ] How do I lift it properly?
+  - pass to replace write memory to GEP
+
 - [ ] Why is it needed to run optimize twice?
 - [ ] How do I build/test on Github Actions?
+
+# Memory manager
+
+no write - ok: https://godbolt.org/z/Kh16Eqz14
+with write - fail: https://godbolt.org/z/98K1MKEK5
+
+# Missing block handler
+
+https://godbolt.org/z/rr5sreW4x
+
+# Troubleshooting
+
+Print all passes
+
+```
+opt-18 -O2 -debug-pass-manager -disable-output .ll
+```
+

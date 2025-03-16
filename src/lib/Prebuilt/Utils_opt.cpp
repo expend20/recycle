@@ -108,9 +108,7 @@ T ReadGlobalMemoryEdgeChecked(void *memory, addr_t addr) {
 
 extern "C" {
 
-uint8_t Stack[PREBUILT_STACK_SIZE];
-const uint64_t StackBase = (uint64_t)Stack;
-const uint64_t StackSize = sizeof(Stack);
+size_t Stack;
 
 X86State State = {};
 
@@ -138,7 +136,7 @@ void SetStack()
     //LOG_MESSAGE("[Utils] SetStack: [0x%lx:0x%lx], size: 0x%lx", StackBase, StackBase + StackSize, StackSize);
     //State.gpr.rsp.qword = StackBase + StackSize - 8;
     //*((uint64_t*)(StackBase + StackSize) - 8) = 0x1234567890;
-    State.gpr.rsp.qword = StackBase;
+    State.gpr.rsp.qword = PREBUILT_STACK_BASE + PREBUILT_STACK_SIZE - 8;
 }
 
 void SetGSBase(uint64_t gs)
@@ -157,21 +155,24 @@ void InitializeX86AddressSpace(
     state->addr.fs_base.qword = fs;
 }
 
+/*
 void* __remill_write_memory_64(void *memory, addr_t addr, uint64_t val) {
-    //if (addr >= StackBase && addr < StackBase + StackSize) {
+    if (addr >= PREBUILT_STACK_BASE && addr < PREBUILT_STACK_BASE + PREBUILT_STACK_SIZE) {
         LOG_MESSAGE("[Utils] __remill_write_memory_64 stack: [0x%lx] = 0x%lx", addr, val);
-        *(uint64_t*)addr = val;
+        const auto offset = addr - PREBUILT_STACK_BASE;
+        *(uint64_t*)(Stack + offset) = val;
         return memory;
-    //}
-    //LOG_MESSAGE("[Utils] __remill_write_memory_64 write out of stack");
-    //exit(1);
-    //return memory;
+    }
+    LOG_MESSAGE("[Utils] __remill_write_memory_64 write out of stack addr: 0x%lx, val: 0x%lx", addr, val);
+    exit(1);
+    return memory;
 }
 
 void* __remill_write_memory_32(void *memory, addr_t addr, uint32_t val) {
-    if (addr >= StackBase && addr < StackBase + StackSize) {
+    if (addr >= PREBUILT_STACK_BASE && addr < PREBUILT_STACK_BASE + PREBUILT_STACK_SIZE) {
         LOG_MESSAGE("[Utils] __remill_write_memory_32 stack: [0x%lx] = 0x%lx", addr, val);
-        *(uint32_t*)addr = val;
+        const auto offset = addr - PREBUILT_STACK_BASE;
+        *(uint32_t*)(Stack + offset) = val;
         return memory;
     }
     LOG_MESSAGE("[Utils] __remill_write_memory_32 write out of stack addr: 0x%lx, val: 0x%lx", addr, val);
@@ -180,9 +181,10 @@ void* __remill_write_memory_32(void *memory, addr_t addr, uint32_t val) {
 }
 
 void* __remill_write_memory_16(void *memory, addr_t addr, uint16_t val) {
-    if (addr >= StackBase && addr < StackBase + StackSize) {
+    if (addr >= PREBUILT_STACK_BASE && addr < PREBUILT_STACK_BASE + PREBUILT_STACK_SIZE) {
         LOG_MESSAGE("[Utils] __remill_write_memory_16 stack: [0x%lx] = 0x%lx", addr, val);
-        *(uint16_t*)addr = val;
+        const auto offset = addr - PREBUILT_STACK_BASE;
+        *(uint16_t*)(Stack + offset) = val;
         return memory;
     }
     LOG_MESSAGE("[Utils] __remill_write_memory_16 write out of stack");
@@ -191,15 +193,18 @@ void* __remill_write_memory_16(void *memory, addr_t addr, uint16_t val) {
 }
 
 void* __remill_write_memory_8(void *memory, addr_t addr, uint8_t val) {
-    if (addr >= StackBase && addr < StackBase + StackSize) {
+    if (addr >= PREBUILT_STACK_BASE && addr < PREBUILT_STACK_BASE + PREBUILT_STACK_SIZE) {
         LOG_MESSAGE("[Utils] __remill_write_memory_8 stack: [0x%lx] = 0x%lx", addr, val);
-        *(uint8_t*)addr = val;
+        const auto offset = addr - PREBUILT_STACK_BASE;
+        *(uint8_t*)(Stack + offset) = val;
         return memory;
     }
     LOG_MESSAGE("[Utils] __remill_write_memory_8 write out of stack");
     exit(1);
     return memory;
 }
+
+*/
 
 typedef struct {
     uint64_t addr;
@@ -215,11 +220,12 @@ uint64_t ReadGlobalMemory64EdgeChecked(void *memory, addr_t addr, size_t size) {
     return ReadGlobalMemoryEdgeChecked<uint64_t>(memory, addr);
 }
 
-// __remill_read_memory_64
+/*
 uint64_t __remill_read_memory_64(void *memory, addr_t addr) {
 
-    if (addr >= StackBase && addr < StackBase + StackSize) {
-        const uint64_t val = *(uint64_t*)addr;
+    if (addr >= PREBUILT_STACK_BASE && addr < PREBUILT_STACK_BASE + PREBUILT_STACK_SIZE) {
+        const auto offset = addr - PREBUILT_STACK_BASE;
+        const uint64_t val = *(uint64_t*)(Stack + offset);
         LOG_MESSAGE("[Utils] __remill_read_memory_64 stack: 0x%lx = 0x%lx", addr, val);
         return val;
     }
@@ -229,18 +235,21 @@ uint64_t __remill_read_memory_64(void *memory, addr_t addr) {
 
 // __remill_read_memory_32
 uint32_t __remill_read_memory_32(void *memory, addr_t addr) {
-    if (addr >= StackBase && addr < StackBase + StackSize) {
-        const uint32_t val = *(uint32_t*)addr;
+    if (addr >= PREBUILT_STACK_BASE && addr < PREBUILT_STACK_BASE + PREBUILT_STACK_SIZE) {
+        const auto offset = addr - PREBUILT_STACK_BASE;
+        const uint32_t val = *(uint32_t*)(Stack + offset);
         LOG_MESSAGE("[Utils] __remill_read_memory_32 stack: 0x%lx = 0x%lx", addr, val);
         return val;
     }
+
     return ReadGlobalMemoryEdgeChecked<uint32_t>(memory, addr);
 }
 
 // __remill_read_memory_16
 uint16_t __remill_read_memory_16(void *memory, addr_t addr) {
-    if (addr >= StackBase && addr < StackBase + StackSize) {
-        const uint16_t val = *(uint16_t*)addr;
+    if (addr >= PREBUILT_STACK_BASE && addr < PREBUILT_STACK_BASE + PREBUILT_STACK_SIZE) {
+        const auto offset = addr - PREBUILT_STACK_BASE;
+        const uint16_t val = *(uint16_t*)(Stack + offset);
         LOG_MESSAGE("[Utils] __remill_read_memory_16 stack: 0x%lx = 0x%lx", addr, val);
         return val;
     }
@@ -249,13 +258,15 @@ uint16_t __remill_read_memory_16(void *memory, addr_t addr) {
 
 // __remill_read_memory_8
 uint8_t __remill_read_memory_8(void *memory, addr_t addr) {
-    if (addr >= StackBase && addr < StackBase + StackSize) {
-        const uint8_t val = *(uint8_t*)addr;
+    if (addr >= PREBUILT_STACK_BASE && addr < PREBUILT_STACK_BASE + PREBUILT_STACK_SIZE) {
+        const auto offset = addr - PREBUILT_STACK_BASE;
+        const uint8_t val = *(uint8_t*)(Stack + offset);
         LOG_MESSAGE("[Utils] __remill_read_memory_8 stack: 0x%lx = 0x%lx", addr, val);
         return val;
     }
     return ReadGlobalMemoryEdgeChecked<uint8_t>(memory, addr);
 }
+*/
 
 // __remill_flag_computation_carry
 bool __remill_flag_computation_carry(bool result, ...) {

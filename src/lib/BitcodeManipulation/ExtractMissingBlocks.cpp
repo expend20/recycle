@@ -18,14 +18,14 @@ void PrintMissingBlocks(const std::vector<uint64_t>& blocks) {
     }
 }
 
-std::vector<uint64_t> ExtractMissingBlocks(llvm::Module& M) {
+std::vector<uint64_t> ExtractMissingBlocks(llvm::Module& M, const std::string& function_name) {
     VLOG(1) << "Extracting missing blocks from module: " << M.getName().str();
     
     // Use a set to store unique addresses
     std::set<uint64_t> addressSet;
     
     // Get the function declaration for __rt_missing_block
-    llvm::Function* missingBlockFunc = M.getFunction("__rt_missing_block");
+    llvm::Function* missingBlockFunc = M.getFunction(function_name);
     
     // If the function doesn't exist in the module, return empty vector
     if (!missingBlockFunc) {

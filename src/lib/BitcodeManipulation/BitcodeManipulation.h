@@ -11,3 +11,7 @@
 #include "BitcodeManipulation/OptimizeModule.h"
 #include "BitcodeManipulation/ExtractMissingBlocks.h"
 #include "BitcodeManipulation/ReplaceMissingBlockCalls.h"
+#include "BitcodeManipulation/CreateEntryWithState.h"
+#include "BitcodeManipulation/ReplaceFunctions.h"
+#include "BitcodeManipulation/SetGlobalVariable.h"
+#include "BitcodeManipulation/ReplaceStackMemoryWrites.h"

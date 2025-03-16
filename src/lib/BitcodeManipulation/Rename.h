@@ -13,4 +13,6 @@ namespace BitcodeManipulation {
  */
 void RenameFunctions(llvm::Module &M);
 
+void RenameFunction(llvm::Module &M, llvm::StringRef OldName, llvm::StringRef NewName);
+
 }  // namespace BitcodeManipulation 

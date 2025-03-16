@@ -67,10 +67,13 @@ void MakeFunctionsInline(llvm::Module& M,
             F.removeFnAttr(llvm::Attribute::NoInline);
             VLOG(1) << "Removed NoInline attribute from function: " << F.getName().str();
         }
+
+        // Mark function return value as noundef
+        // F.addFnAttr(llvm::Attribute::NoUndef);
         
         // Mark the function as inline
         F.addFnAttr(llvm::Attribute::AlwaysInline);
-        VLOG(1) << "Set inline attribute for function: " << F.getName().str();
+        //VLOG(1) << "Set inline attribute for function: " << F.getName().str();
     }
     
     VLOG(1) << "Successfully marked eligible functions as inline in module: " << M.getName().str();
@@ -110,6 +113,11 @@ void MakeSymbolsInternal(llvm::Module& M,
             F.setLinkage(llvm::GlobalValue::InternalLinkage);
             VLOG(1) << "Set internal linkage for function: " << F.getName().str();
         }
+
+        // addd noundef keyword to the function (not an attribute but a keyword)
+        // e.g. define dso_local noundef i32 @main() {
+        //F.addFnAttr(llvm::Attribute::NoUndef);
+        // add dso_local
     }
     
     VLOG(1) << "Successfully updated linkage for symbols in module: " << M.getName().str();
