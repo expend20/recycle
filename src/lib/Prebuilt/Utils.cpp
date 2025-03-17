@@ -4,6 +4,8 @@
 #include <string.h>
 #include <type_traits>
 
+#define LOG_ENABLED 1
+
 #ifdef LOG_ENABLED
 #define LOG_MESSAGE(...) Runtime::LogMessage(__VA_ARGS__)
 #else
@@ -615,52 +617,10 @@ X86State State = {};
 // initial values
 uint64_t GlobalRcx = 0;
 uint64_t GlobalPC = 0;
+size_t GSBase;
+size_t StartPC;
 
 void* Memory = nullptr;
-
-void SetParameters()
-{
-    // make configurable
-    State.gpr.rcx.qword = GlobalRcx;
-};
-
-void SetPC(uint64_t pc)
-{
-    LOG_MESSAGE("[Utils] SetPC: 0x%lx", pc);
-    GlobalPC = pc;
-    State.gpr.rip.qword = pc;
-}
-
-void SetStack()
-{
-    LOG_MESSAGE("[Utils] SetStack: [0x%lx:0x%lx], size: 0x%lx", StackBase, StackBase + StackSize, StackSize);
-    State.gpr.rsp.qword = StackBase + StackSize - 8;
-    *((uint64_t*)(StackBase + StackSize) - 8) = 0x1234567890;
-}
-
-void SetStack_opt()
-{
-    //LOG_MESSAGE("[Utils] SetStack: [0x%lx:0x%lx], size: 0x%lx", StackBase, StackBase + StackSize, StackSize);
-    //State.gpr.rsp.qword = StackBase + StackSize - 8;
-    //*((uint64_t*)(StackBase + StackSize) - 8) = 0x1234567890;
-    State.gpr.rsp.qword = StackBase;
-}
-
-void SetGSBase(uint64_t gs)
-{
-    State.addr.gs_base.qword = gs;
-}
-
-void InitializeX86AddressSpace(
-    X86State *state, uint64_t ss, uint64_t es, uint64_t gs, uint64_t fs, uint64_t ds, uint64_t cs)
-{
-    state->addr.cs_base.qword = cs;
-    state->addr.ds_base.qword = ds;
-    state->addr.es_base.qword = es;
-    state->addr.ss_base.qword = ss;
-    state->addr.gs_base.qword = gs;
-    state->addr.fs_base.qword = fs;
-}
 
 void* __remill_write_memory_64_opt(void *memory, addr_t addr, uint64_t val) {
     //if (addr >= StackBase && addr < StackBase + StackSize) {
@@ -679,7 +639,7 @@ void* __remill_write_memory_64(void *memory, addr_t addr, uint64_t val) {
         *(uint64_t*)addr = val;
         return memory;
     }
-    LOG_MESSAGE("[Utils] __remill_write_memory_64 write out of stack");
+    LOG_MESSAGE("[Utils] __remill_write_memory_64 write out of stack addr: 0x%lx, val: 0x%lx", addr, val);
     exit(1);
     return memory;
 }
@@ -833,6 +793,43 @@ uint64_t __remill_undefined_64(void) {
 bool __remill_compare_neq(bool result) {
     LOG_MESSAGE("[Utils] __remill_compare_neq: %d", result);
     return result;
+}
+
+__attribute__((always_inline)) void SetParameters(X86State& state)
+{
+    // make configurable
+    state.gpr.rcx.qword = GlobalRcx;
+};
+
+__attribute__((always_inline)) void SetPC(X86State& state, uint64_t pc)
+{
+    state.gpr.rip.qword = pc;
+}
+
+__attribute__((always_inline)) void SetStack(X86State& state, uintptr_t stack)
+{
+    state.gpr.rsp.qword = stack;
+}
+
+__attribute__((always_inline)) void SetGSBase(X86State& state, uint64_t gs)
+{
+    state.addr.gs_base.qword = gs;
+}
+
+void* main_next(void* state, uint64_t pc, void* memory);
+void RuntimeCallback(void* state, uint64_t* pc, void** memory);
+
+int main() {
+    X86State State = {};
+    //uintptr_t Stack;
+
+    SetParameters(State);
+    SetPC(State, StartPC);
+    SetStack(State, (uintptr_t)Stack + StackSize - 8);
+    SetGSBase(State, GSBase);
+    RuntimeCallback(&State, &StartPC, &Memory);
+    main_next(&State, StartPC, Memory);
+    return (int)State.gpr.rax.dword;
 }
 
 } // extern "C"

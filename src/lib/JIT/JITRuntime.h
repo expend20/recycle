@@ -31,6 +31,12 @@ private:
     static std::vector<std::pair<uint64_t, uint8_t>> missing_memory;
 };
 
+// Add this before the extern "C" block
+using RuntimeCallbackFn = void(*)(void* state, uint64_t* pc, void** memory);
+
+void RegisterRuntimeCallback(RuntimeCallbackFn callback);
+void UnregisterRuntimeCallback();
+
 // Sample runtime functions that will be linked with lifted code
 extern "C" {
     // Remill intrinsics
@@ -47,6 +53,8 @@ extern "C" {
     void* __remill_async_hyper_call(void* state, uint64_t pc, void* memory);
     // Variadic logging function
     void LogMessage(const char* format, ...);
+    void RuntimeCallback(void* state, uint64_t* pc, void** memory);
+    void RuntimeExit(uint32_t code);
 }
 
 } // namespace Runtime 

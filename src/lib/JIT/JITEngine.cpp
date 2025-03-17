@@ -80,6 +80,8 @@ bool JITEngine::Initialize(std::unique_ptr<llvm::Module> module) {
         {"__remill_async_hyper_call", reinterpret_cast<void*>(Runtime::__remill_async_hyper_call)},
 
         {"LogMessage", reinterpret_cast<void*>(Runtime::LogMessage)},
+        {"RuntimeCallback", reinterpret_cast<void*>(Runtime::RuntimeCallback)},
+        {"exit", reinterpret_cast<void*>(Runtime::RuntimeExit)},
     };
 
     for (const auto& func : externalFuncs) {
@@ -91,6 +93,23 @@ bool JITEngine::Initialize(std::unique_ptr<llvm::Module> module) {
     
     // Force symbol resolution
     ExecutionEngine->finalizeObject();
+
+    // Is there functions without a body?
+    for (const auto& func : modulePtr->getFunctionList()) {
+        if (func.isDeclaration() && !func.isIntrinsic()) {
+            // check external functions
+            bool found = false;
+            for (const auto& externalFunc : externalFuncs) {
+                if (externalFunc.name == func.getName().str()) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                throw std::runtime_error("Function " + func.getName().str() + " has no body");
+            }
+        }
+    }
 
     return true;
 }

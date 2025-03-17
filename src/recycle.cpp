@@ -39,6 +39,9 @@ DEFINE_bool(help_all, false, "Show all help options");
 
 namespace Recycle {
 
+typedef void(*RuntimeCallbackFn)(void* state, uint64_t* pc, void** memory);
+typedef bool(*BruteforceCallbackFn)(uint64_t result); // if returns true, should stop bruteforce
+
 // Command line options class to handle program arguments
 class Options {
 public:
@@ -244,7 +247,7 @@ bool liftBasicBlock(std::unique_ptr<llvm::Module>& saved_module,
     // Add missing block handler with current mappings
     BitcodeManipulation::AddMissingBlockHandler(*saved_module, addr_to_func_map);
     // check if there is entry function in the module
-    const auto entry_function = saved_module->getFunction("entry");
+    const auto entry_function = saved_module->getFunction("main");
     if (!entry_function) {
         const auto utils_module = BitcodeManipulation::ReadBitcodeFile("build/Utils.ll", llvm_context);
         if (!utils_module)
@@ -253,10 +256,99 @@ bool liftBasicBlock(std::unique_ptr<llvm::Module>& saved_module,
             return false;
         }
         BitcodeManipulation::MergeModules(*saved_module, *utils_module);
-        BitcodeManipulation::CreateEntryFunction(
-            *saved_module, memory_reader.GetEntryPoint(), memory_reader.GetThreadTebAddress(), entry_point_name);
+        BitcodeManipulation::ReplaceFunction(*saved_module, "main_next", entry_point_name);
+        BitcodeManipulation::SetGlobalVariableUint64(*saved_module, "StartPC", ip);
+        BitcodeManipulation::SetGlobalVariableUint64(*saved_module, "GSBase", memory_reader.GetThreadTebAddress());
+        //BitcodeManipulation::SetGlobalVariableUint64(*saved_module, "GlobalRcx", 0x666);
+        //BitcodeManipulation::CreateEntryFunction(
+        //    *saved_module, memory_reader.GetEntryPoint(), memory_reader.GetThreadTebAddress(), entry_point_name);
     }
 
+    return true;
+}
+bool bruteforceJITCode(std::unique_ptr<llvm::Module>& saved_module,
+                   uint64_t ip,
+                   uint64_t entry_point,
+                   std::vector<std::pair<uint64_t, uint8_t>>& missing_memory,
+                   std::vector<std::pair<uint64_t, uint8_t>>& added_memory,
+                   std::vector<uint64_t>& missing_blocks,
+                   RuntimeCallbackFn runtime_callback,
+                   BruteforceCallbackFn callback) {
+    // Create get saved memory ptr function
+    if (BitcodeManipulation::CreateGetSavedMemoryPtr(*saved_module) == nullptr) {
+        LOG(ERROR) << "Failed to create get saved memory ptr";
+        return false;
+    }
+
+    // Initialize JIT engine with the updated module
+    JITEngine jit;
+    if (!jit.Initialize(llvm::CloneModule(*saved_module))) {
+        LOG(ERROR) << "Failed to initialize JIT engine";
+        return false;
+    }
+
+    // Execute the lifted code
+    Runtime::RegisterRuntimeCallback(runtime_callback);
+    uint64_t result;
+    do {
+        if (!jit.ExecuteFunction("main", &result))
+        {
+            LOG(ERROR) << "Failed to execute lifted code at IP: 0x" << std::hex << entry_point;
+            return false;
+        }
+        VLOG(1) << "Successfully executed lifted code at IP: 0x" << std::hex << entry_point;
+
+        // Process any new missing memory
+        const auto &new_missing_memory = Runtime::MissingMemoryTracker::GetMissingMemory();
+        if (new_missing_memory.size() > 0)
+        {
+            VLOG(1) << "New missing memory encountered (" << new_missing_memory.size() << "):\n";
+            for (const auto &mem : new_missing_memory)
+            {
+                VLOG(1) << "  " << std::hex << mem.first << ", size: " << mem.second << " bytes";
+            }
+            VLOG(1) << "Taking only first missing memory, if it's not already in missing_memory...";
+            for (const auto &mem : new_missing_memory)
+            {
+                bool found = false;
+                for (const auto &addr : added_memory)
+                {
+                    if (addr.first == mem.first)
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found)
+                {
+                    LOG(INFO) << "Adding missing memory: " << std::hex << mem.first << ", size: " << mem.second << " bytes";
+                    missing_memory.push_back(mem);
+                    added_memory.push_back(mem);
+                }
+            }
+            Runtime::MissingMemoryTracker::ClearMissingMemory();
+            break;
+        }
+
+        // Process any new missing blocks
+        const auto &new_missing_blocks = Runtime::MissingBlockTracker::GetMissingBlocks();
+        if (new_missing_memory.size() == 0 && new_missing_blocks.size() > 0)
+        {
+            // Print all missing blocks encountered during execution
+            LOG(INFO) << "New missing blocks encountered (" << new_missing_blocks.size() << "):\n";
+            for (const auto &pc : new_missing_blocks)
+            {
+                LOG(INFO) << "  " << std::hex << pc;
+                missing_blocks.push_back(pc);
+            }
+            Runtime::MissingBlockTracker::ClearMissingBlocks();
+            break;
+        }
+        Runtime::MissingBlockTracker::ClearMissingBlocks();
+
+    } while (!callback(result));
+
+    LOG(INFO) << "Bruteforce done\n";
     return true;
 }
 
@@ -290,11 +382,13 @@ bool executeJITCode(std::unique_ptr<llvm::Module>& saved_module,
 
     // Execute the lifted code
     LOG(INFO) << "Executing lifted code at IP: 0x" << std::hex << entry_point;
-    if (!jit.ExecuteFunction("entry")) {
+    uintptr_t result;
+    if (!jit.ExecuteFunction("main", &result)) {
         LOG(ERROR) << "Failed to execute lifted code at IP: 0x" << std::hex << entry_point;
         return false;
     }
     VLOG(1) << "Successfully executed lifted code at IP: 0x" << std::hex << entry_point;
+    LOG(INFO) << "Result: " << result;
 
     // Process any new missing memory
     bool missing_memory_found = false;
@@ -413,6 +507,20 @@ int main(int argc, char* argv[]) {
 
         LOG(INFO) << "Program lifted successfully, " << iteration_count << " iterations completed";
 
+        // create arrow function for RuntimeCallback
+        auto runtime_callback = [](void* s, uint64_t* pc, void** memory) {
+            static uint64_t rcx = 0;
+            //LOG(INFO) << "Runtime callback, rcx: " << rcx;
+            X86State* state = static_cast<X86State*>(s);
+            state->gpr.rcx.dword = rcx++;
+        };
+
+        auto callback = [](uint64_t result) {
+            //LOG(INFO) << "Bruteforce callback, result: " << result;
+            return result == 1;
+        };
+
+        //Recycle::bruteforceJITCode(saved_module, ip, entry_point, missing_memory, added_memory, missing_blocks, runtime_callback, callback);
         // Optimize the module now, first replace Utils functions with optimized versions
         // BitcodeManipulation::ReplaceFunction(*saved_module, "__remill_write_memory_64", "__remill_write_memory_64_opt");
         //BitcodeManipulation::ReplaceFunction(*saved_module, "SetStack", "SetStack_opt");
@@ -421,16 +529,16 @@ int main(int argc, char* argv[]) {
         //BitcodeManipulation::ReplaceFunction(*saved_module, "ReadGlobalMemoryEdgeChecked_16", "ReadGlobalMemoryEdgeChecked_16_opt");
         //BitcodeManipulation::ReplaceFunction(*saved_module, "ReadGlobalMemoryEdgeChecked_8", "ReadGlobalMemoryEdgeChecked_8_opt");
 
-        const auto exclustion = std::vector<std::string>{"entry"};
+        //const auto exclustion = std::vector<std::string>{"entry"};
 
-        BitcodeManipulation::RemoveOptNoneAttribute(*saved_module, exclustion);
-        BitcodeManipulation::MakeSymbolsInternal(*saved_module, exclustion);
-        //BitcodeManipulation::MakeFunctionsInline(*saved_module, exclustion);
-        BitcodeManipulation::DumpModule(*saved_module, "Utils-pre_opt.ll");
-        LOG(INFO) << "Optimized module for the first time";
-        BitcodeManipulation::OptimizeModule(*saved_module, 3); // Calling optimize module twice is intentional
+        //BitcodeManipulation::RemoveOptNoneAttribute(*saved_module, exclustion);
+        //BitcodeManipulation::MakeSymbolsInternal(*saved_module, exclustion);
+        ////BitcodeManipulation::MakeFunctionsInline(*saved_module, exclustion);
+        //BitcodeManipulation::DumpModule(*saved_module, "Utils-pre_opt.ll");
+        //LOG(INFO) << "Optimized module for the first time";
         //BitcodeManipulation::OptimizeModule(*saved_module, 3); // Calling optimize module twice is intentional
-        BitcodeManipulation::DumpModule(*saved_module, "Utils-optimized_2x1.ll");
+        ////BitcodeManipulation::OptimizeModule(*saved_module, 3); // Calling optimize module twice is intentional
+        //BitcodeManipulation::DumpModule(*saved_module, "Utils-optimized_2x1.ll");
 
         return 0;
     }

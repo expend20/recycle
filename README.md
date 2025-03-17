@@ -34,7 +34,6 @@ cmake --build build --config Release
     - If you've inlined a basic block (function) and there is a jump on it again, it's nowhere to jump (upd: keep lifted ones and merge each time?)
 - [ ] How do I lift it properly?
   - pass to replace write memory to GEP
-
 - [ ] Why is it needed to run optimize twice?
 - [ ] How do I build/test on Github Actions?
 

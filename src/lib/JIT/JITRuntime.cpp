@@ -15,6 +15,18 @@ std::vector<uint64_t> MissingBlockTracker::missing_blocks;
 std::unordered_set<uint64_t> MissingBlockTracker::ignored_addresses;
 std::vector<std::pair<uint64_t, uint8_t>> MissingMemoryTracker::missing_memory;
 
+namespace {
+    RuntimeCallbackFn g_runtimeCallback = nullptr;
+}
+
+void RegisterRuntimeCallback(RuntimeCallbackFn callback) {
+    g_runtimeCallback = callback;
+}
+
+void UnregisterRuntimeCallback() {
+    g_runtimeCallback = nullptr;
+}
+
 extern "C" {
 
 void LogMessage(const char* format, ...) {
@@ -85,6 +97,14 @@ void* __rt_write_memory8(void *memory, intptr_t addr, uint8_t val) {
     VLOG(1) << "JRT: Writing memory at address: 0x" << std::hex << addr << " with value: 0x" << std::hex << val;
     MissingMemoryTracker::AddMissingMemory(addr, 1);
     return memory;
+}
+
+void RuntimeCallback(void* state, uint64_t* pc, void** memory) {
+    if (g_runtimeCallback) {
+        g_runtimeCallback(state, pc, memory);
+    } else {
+        VLOG(1) << "JRT: RuntimeCallback called but no callback is registered";
+    }
 }
 
 } // extern "C"
@@ -158,6 +178,11 @@ const std::vector<std::pair<uint64_t, uint8_t>>& MissingMemoryTracker::GetMissin
 
 void MissingMemoryTracker::ClearMissingMemory() {
     missing_memory.clear();
+}
+
+void RuntimeExit(uint32_t code) {
+    LOG(INFO) << "JRT: exit called with code: " << code;
+    exit(code);
 }
 
 } // namespace Runtime 
