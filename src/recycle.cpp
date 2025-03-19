@@ -507,18 +507,18 @@ int main(int argc, char* argv[]) {
 
         LOG(INFO) << "Program lifted successfully, " << iteration_count << " iterations completed";
 
-        // create arrow function for RuntimeCallback
-        auto runtime_callback = [](void* s, uint64_t* pc, void** memory) {
-            static uint64_t rcx = 0;
-            //LOG(INFO) << "Runtime callback, rcx: " << rcx;
-            X86State* state = static_cast<X86State*>(s);
-            state->gpr.rcx.dword = rcx++;
-        };
+        //// create arrow function for RuntimeCallback
+        //auto runtime_callback = [](void* s, uint64_t* pc, void** memory) {
+        //    static uint64_t rcx = 0;
+        //    //LOG(INFO) << "Runtime callback, rcx: " << rcx;
+        //    X86State* state = static_cast<X86State*>(s);
+        //    state->gpr.rcx.dword = rcx++;
+        //};
 
-        auto callback = [](uint64_t result) {
-            //LOG(INFO) << "Bruteforce callback, result: " << result;
-            return result == 1;
-        };
+        //auto callback = [](uint64_t result) {
+        //    LOG(INFO) << "Bruteforce callback, result: " << result;
+        //    return result == 1;
+        //};
 
         //Recycle::bruteforceJITCode(saved_module, ip, entry_point, missing_memory, added_memory, missing_blocks, runtime_callback, callback);
         // Optimize the module now, first replace Utils functions with optimized versions
@@ -529,16 +529,15 @@ int main(int argc, char* argv[]) {
         //BitcodeManipulation::ReplaceFunction(*saved_module, "ReadGlobalMemoryEdgeChecked_16", "ReadGlobalMemoryEdgeChecked_16_opt");
         //BitcodeManipulation::ReplaceFunction(*saved_module, "ReadGlobalMemoryEdgeChecked_8", "ReadGlobalMemoryEdgeChecked_8_opt");
 
-        //const auto exclustion = std::vector<std::string>{"entry"};
+        const auto exclustion = std::vector<std::string>{"main"};
 
-        //BitcodeManipulation::RemoveOptNoneAttribute(*saved_module, exclustion);
-        //BitcodeManipulation::MakeSymbolsInternal(*saved_module, exclustion);
-        ////BitcodeManipulation::MakeFunctionsInline(*saved_module, exclustion);
-        //BitcodeManipulation::DumpModule(*saved_module, "Utils-pre_opt.ll");
-        //LOG(INFO) << "Optimized module for the first time";
+        BitcodeManipulation::RemoveOptNoneAttribute(*saved_module, exclustion);
+        BitcodeManipulation::MakeSymbolsInternal(*saved_module, exclustion);
+        BitcodeManipulation::MakeFunctionsInline(*saved_module, exclustion);
+        BitcodeManipulation::DumpModule(*saved_module, "Utils-pre_opt.ll");
+        BitcodeManipulation::OptimizeModule(*saved_module, 3); // Calling optimize module twice is intentional
         //BitcodeManipulation::OptimizeModule(*saved_module, 3); // Calling optimize module twice is intentional
-        ////BitcodeManipulation::OptimizeModule(*saved_module, 3); // Calling optimize module twice is intentional
-        //BitcodeManipulation::DumpModule(*saved_module, "Utils-optimized_2x1.ll");
+        BitcodeManipulation::DumpModule(*saved_module, "Utils-optimized_2x1.ll");
 
         return 0;
     }
