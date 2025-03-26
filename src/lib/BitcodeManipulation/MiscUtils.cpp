@@ -17,7 +17,6 @@ namespace BitcodeManipulation {
 void MergeModules(llvm::Module& M1, const llvm::Module& M2) {
 
     VLOG(1) << "Merging modules";
-    LOG(INFO) << "Merging modules";
 
     VLOG(1) << "Verifying M2";
     if (llvm::verifyModule(M2, &llvm::errs())) {

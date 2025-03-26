@@ -827,7 +827,7 @@ int main() {
     SetPC(State, StartPC);
     SetStack(State, (uintptr_t)Stack + StackSize - 8);
     SetGSBase(State, GSBase);
-    RuntimeCallback(&State, &StartPC, &Memory);
+    //RuntimeCallback(&State, &StartPC, &Memory);
     main_next(&State, StartPC, Memory);
     return (int)State.gpr.rax.dword;
 }
